@@ -45,8 +45,8 @@
     border-radius: 12px; padding: 4px; gap: 4px;
   }
   .tabbtn {
-    flex: 1; text-align: center; padding: 10px 4px; border-radius: 9px; cursor: pointer;
-    font-size: 11.5px; font-weight: 700; color: var(--muted); letter-spacing: 0.01em;
+    flex: 1; text-align: center; padding: 9px 2px; border-radius: 9px; cursor: pointer;
+    font-size: 10.5px; font-weight: 700; color: var(--muted); letter-spacing: 0.01em;
     border: none; background: transparent; font-family: inherit;
   }
   .tabbtn.active { background: var(--panel2); color: var(--amber); }
@@ -150,6 +150,49 @@
 
   footer { text-align: center; margin-top: 20px; font-size: 10.5px; color: var(--muted); line-height: 1.6; }
   footer .rule { color: var(--amber); }
+
+  /* ---------------- RIC ROUTE BUILDER ---------------- */
+  .ric-point {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px; margin-bottom: 8px;
+  }
+  .ric-point-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .ric-point-head .pt-label { font-family: var(--mono); font-size: 11px; color: var(--amber); font-weight: 700; }
+  .ric-point-head .pt-remove {
+    background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; line-height: 1; padding: 0 4px;
+  }
+  .ric-type-toggle { display: flex; gap: 6px; margin-bottom: 8px; }
+  .ric-type-toggle button {
+    flex: 1; padding: 6px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel);
+    color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .ric-type-toggle button.active { background: var(--amber-dim); color: var(--amber); border-color: var(--amber); }
+  .ric-coord-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .ric-coord-row select, .ric-coord-row input {
+    font-family: var(--mono); font-size: 14px; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px;
+  }
+  .ric-coord-row select { flex: 1; }
+  .ric-coord-row input[type="number"] { width: 54px; text-align: center; }
+  .ric-coord-row .hemi { width: 44px; }
+  .ric-add-btn {
+    width: 100%; padding: 10px; border-radius: 10px; border: 1px dashed var(--amber-dim);
+    background: none; color: var(--amber); font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: inherit; margin: 6px 0 14px;
+  }
+  .ric-table { width: 100%; border-collapse: collapse; }
+  .ric-table th, .ric-table td {
+    font-family: var(--mono); font-size: 12px; text-align: right; padding: 6px 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .ric-table th { color: var(--muted); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .ric-table td:first-child, .ric-table th:first-child { text-align: left; }
+  .ric-total-row td { color: var(--green); font-weight: 700; border-top: 2px solid var(--line); border-bottom: none; }
+  .data-freshness {
+    font-family: var(--mono); font-size: 10px; color: var(--muted); background: var(--panel2);
+    border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; line-height: 1.6;
+  }
+  .data-freshness b { color: var(--amber); }
 </style>
 </head>
 <body>
@@ -164,6 +207,7 @@
     <button class="tabbtn" id="tabBtnAlt" onclick="switchTab('alt')">Altitude</button>
     <button class="tabbtn" id="tabBtnWind" onclick="switchTab('wind')">Wind</button>
     <button class="tabbtn" id="tabBtnAppr" onclick="switchTab('appr')">Appr</button>
+    <button class="tabbtn" id="tabBtnRic" onclick="switchTab('ric')">RIC</button>
   </div>
 
   <!-- ================= TAB: FUEL LEAK ================= -->
@@ -377,12 +421,33 @@
     </div>
   </div>
 
+  <!-- ================= TAB: RIC ================= -->
+  <div class="tabpanel" id="tabRic">
+    <div class="card">
+      <h2>RIC &mdash; Route Track &amp; Distance</h2>
+      <div class="data-freshness">
+        Waypoint data: <b>Jeppesen E-AWM General, Issue 9 JUL 26</b> &mdash; re-upload periodically to keep current.<br>
+        Magnetic variation: <b>NOAA WMM2025</b> (valid 2024&ndash;2029).
+      </div>
+      <div id="ricPoints"></div>
+      <button class="ric-add-btn" onclick="ricAddPoint()">+ Add Point</button>
+      <table class="ric-table">
+        <thead><tr><th>Leg</th><th>TT</th><th>MT</th><th>NM</th></tr></thead>
+        <tbody id="ricLegs"></tbody>
+      </table>
+    </div>
+  </div>
+
   <footer>
     <span class="rule">Rule-of-thumb estimate only.</span><br>
     Always confirm against FCOM/FCTM performance data and current OFP figures before accepting an ATC altitude assignment.
   </footer>
 </div>
 
+<script>
+(()=>{var b=(t,h)=>()=>{try{return h||t((h={exports:{}}).exports,h),h.exports}catch(e){throw h=0,e}};var S=b((ot,C)=>{var A=q();C.exports=I;function I(t){this.x=t.x,this.y=t.y,this.z=t.z}I.prototype.toGeodetic=function(t){var h=this.z<0?-t.b:t.b,e=this.x,i=this.y,a=this.z,c=Math.sqr(e*e+i*i),r=(h*a-(t.a*t.a-h*h))/(t.a*c),d=(h*a+(t.a*t.a-h*h))/(t.a*c),s=4/3*(r*d+1),f=2*(r*r+d*d),l=s*s*s+f*f,o;l>0?o=Math.pow(Math.sqrt(l)-f,1/3)-Math.pow(Math.sqrt(l)+f,1/3):o=2*Math.sqrt(-s)*Math.cos(Math.acos(f/(s*Math.sqrt(-s)))/3),o*o<Math.abs(s)&&(o=-(o*o*o+2*f)/3*s);var n=(Math.sqrt(r*r+o)+r)/2,_=Math.sqrt(n*n+(d-o*n)/(2*n-r))-n,v=Math.atan(t.a*(1-_*_)/(2*h*_)),m=Math.atan2(i,e);m<0&&(m+=2*Math.PI);var M=(c-t.a*_)*Math.cos(v)+(a-h)*Math.sin(v),u=m*Math.PI/180;return u>180&&(u-=360),new A({lambda:u,phi:v*Math.PI/180,height_above_ellipsoid:M,ellipsoid:t})}});var E=b((dt,D)=>{D.exports=B;function B(t,h){var e=Math.sin(Math.PI/180*t.phig),i;h<=16||1-Math.abs(e)<1e-10?i=J(e,h):i=K(e,h),this.pcup=i.pcup,this.dpcup=i.dpcup}function J(t,h){var e,i,a,c,r,d,s,f,l=[1],o=[1],n=[0];for(i=Math.sqrt((1-t)*(1+t)),f=(h+1)*(h+2)/2,a=1;a<=h;a++)for(c=0;c<=a;c++)r=a*(a+1)/2+c,a==c?(d=(a-1)*a/2+c-1,o[r]=i*o[d],n[r]=i*n[d]+t*o[d]):a==1&&c==0?(d=(a-1)*a/2+c,o[r]=t*o[d],n[r]=t*n[d]-i*o[d]):a>1&&a!=c&&(d=(a-2)*(a-1)/2+c,s=(a-1)*a/2+c,c>a-2?(o[r]=t*o[s],n[r]=t*n[s]-i*o[s]):(e=((a-1)*(a-1)-c*c)/((2*a-1)*(2*a-3)),o[r]=t*o[s]-e*o[d],n[r]=t*n[s]-i*o[s]-e*n[d]));for(a=1;a<=h;a++)for(r=a*(a+1)/2,d=(a-1)*a/2,l[r]=l[d]*(2*a-1)/a,c=1;c<=a;c++)r=a*(a+1)/2+c,d=a*(a+1)/2+c-1,l[r]=l[d]*Math.sqrt((a-c+1)*(c==1?2:1)/(a+c));for(a=1;a<=h;a++)for(c=0;c<=a;c++)r=a*(a+1)/2+c,o[r]*=l[r],n[r]*=-l[r];return{pcup:o,dpcup:n}}function K(t,h){if(Math.abs(t)==1)throw new Error("Error in PcupHigh: derivative cannot be calculated at poles");var e,i,a,c=(h+1)*(h+2)/2,r=[],d=[],s=[],f=1e-280;for(e=0;e<=2*h+1;++e)s[e]=Math.sqrt(e);for(a=2,e=0;e<=h;e++){for(a++,r[a]=(2*e-1)/e,d[a]=(e-1)/e,i=1;i<=e-2;i++)a++,r[a]=(2*e-1)/s[e+i]/s[e-i],d[a]=s[e-i-1]*s[e+i-1]/s[e+i]/s[e-i];a+=2}var l=Math.sqrt((1-t)*(1+t)),o,n=t,_=1,v=[1,n],m=[0,l];if(h==0)throw new Error("Error in PcupHigh: n_max must be greater than 0");for(a=1,e=2;e<=h;e++)a=a+e,o=r[a]*t*n-d[a]*_,v[a]=o,m[a]=e*(n-t*o)/l,_=n,n=o;for(var M=s[2]*f,u=1/f,p=0,i=1;i<=h-1;++i)for(u*=l,p=p+i+1,M=M*s[2*i+1]/s[2*i],v[p]=M*u/s[2*i+1],m[p]=-(i*t*v[p]/l),_=M/s[2*i+1],a=p+i+1,n=t*s[2*i+1]*_,v[a]=n*u,m[a]=(_*u*s[2*i+1]-t*(i+1)*v[a])/l,e=i+2;e<=h;++e)a=a+e,o=t*r[a]*n-d[a]*_,v[a]=o*u,m[a]=(s[e+i]*s[e-i]*n*u-e*t*v[a])/l,_=n,n=o;return u=u*l,p=p+i+1,M=M/s[2*h],v[p]=M*u,m[p]=-h*t*v[p]/l,{pcup:v,dpcup:m}}});var V=b((ct,G)=>{var N=S(),Q=E();G.exports=z;function z(t){this.lambda=t.lambda,this.phig=t.phig,this.r=t.r}z.prototype.toCartesian=function(){var t=this.phig*Math.PI/180,h=this.lambda*Math.PI/180;return new N({x:this.r*cos(t)*cos(h),y:this.r*cos(t)*sin(h),z:this.r*sin(t)})};z.prototype.toGeodetic=function(t){return this.toCartesian().toGeodetic(t)};z.prototype.getHarmonicVariables=function(t,h){var e,i,a=Math.cos(Math.PI/180*this.lambda),c=Math.sin(Math.PI/180*this.lambda),r=[1,a],d=[0,c],s=[t.re/this.r*(t.re/this.r)];for(i=1;i<=h;i++)s[i]=s[i-1]*(t.re/this.r);for(e=2;e<=h;e++)r[e]=r[e-1]*a-d[e-1]*c,d[e]=r[e-1]*c+d[e-1]*a;return{relative_radius_power:s,cos_mlambda:r,sin_mlambda:d}};z.prototype.getLegendreFunction=function(t){return new Q(this,t)}});var F=b((nt,T)=>{T.exports=R;function R(t){t=t||{a:6378.137,b:6356.7523142,fla:1/298.257223563,re:6371.2},this.a=t.a,this.b=t.b,this.fla=t.fla,this.re=t.re,this.eps=Math.sqrt(1-this.b*this.b/(this.a*this.a)),this.epssq=this.eps*this.eps}});var q=b((lt,H)=>{var X=V(),$=F();H.exports=x;function x(t){this.options=t,this.lambda=t.lambda||t.lon,this.phi=t.phi||t.lat,this.height_above_ellipsoid=t.height_above_ellipsoid||0,this.ellipsoid=t.ellipsoid||new $}x.prototype.toSpherical=function(){var t=this.ellipsoid,h=Math.cos(this.phi*Math.PI/180),e=Math.sin(this.phi*Math.PI/180),i=t.a/Math.sqrt(1-t.epssq*e*e),a=(i+this.height_above_ellipsoid)*h,c=(i*(1-t.epssq)+this.height_above_ellipsoid)*e,r=Math.sqrt(a*a+c*c);return new X({r,phig:180/Math.PI*Math.asin(c/r),lambda:this.lambda})};x.prototype.clone=function(){return new x(this.options)}});var k=b((vt,L)=>{L.exports=g;function g(t){this.x=t.x,this.y=t.y,this.z=t.z,this.h=t.h,this.f=t.f,this.incl=t.incl,this.decl=t.decl,this.gv=t.gv,this.xdot=t.xdot,this.ydot=t.ydot,this.zdot=t.zdot,this.hdot=t.hdot,this.fdot=t.fdot,this.incldot=t.incldot,this.decldot=t.decldot,this.gvdot=t.gvdot}g.prototype.clone=function(){return new g(this)};g.prototype.scale=function(t){return new g({x:this.x*t,y:this.y*t,z:this.z*t,h:this.h*t,f:this.f*t,incl:this.incl*t,decl:this.decl*t,gv:this.gv*t,xdot:this.xdot*t,ydot:this.ydot*t,zdot:this.zdot*t,hdot:this.hdot*t,fdot:this.fdot*t,incldot:this.incldot*t,decldot:this.decldot*t,gvdot:this.gvdot*t})};g.prototype.subtract=function(t){return new g({x:this.x-t.x,y:this.y-t.y,z:this.z-t.z,h:this.h-t.h,f:this.f-t.f,incl:this.incl-t.incl,decl:this.decl-t.decl,gv:this.gv-t.gv,xdot:this.xdot-t.xdot,ydot:this.ydot-t.ydot,zdot:this.zdot-t.zdot,hdot:this.hdot-t.hdot,fdot:this.fdot-t.fdot,incldot:this.incldot-t.incldot,decldot:this.decldot-t.decldot,gvdot:this.gvdot-t.gvdot})};g.fromGeoMagneticVector=function(t){var h=t.bx,e=t.by,i=t.bz,a=Math.sqrt(h*h+e*e);return new g({x:h,y:e,z:i,h:a,f:Math.sqrt(a*a+i*i),decl:180/Math.PI*Math.atan2(e,h),incl:180/Math.PI*Math.atan2(i,a)})};g.fromSecularVariationVector=function(t){var h=t.bx,e=t.by,i=t.bz;return new g({xdot:h,ydot:e,zdot:i,hdot:(this.x*h+this.y*e)/this.h,fdot:(this.x*h+this.y*e+this.z*i)/this.f,decldot:180/Math.PI*(this.x*this.ydot-this.y*this.xdot)/(this.h*this.h),incldot:180/Math.PI*(this.h*this.zdot-this.z*this.hdot)/(this.f*this.f),gvdot:this.decldot})}});var W=b((ft,U)=>{U.exports=P;function P(t){this.bx=t.bx,this.by=t.by,this.bz=t.bz}P.prototype.rotate=function(t,h){var e=Math.PI/180*(t.phig-h.phi);return new P({bz:this.bx*Math.sin(e)+this.bz*Math.cos(e),bx:this.bx*Math.cos(e)-this.bz*Math.sin(e),by:this.by})}});var O=b((_t,Z)=>{var tt=q(),at=k(),et=W();Z.exports=w;function w(t){this.epoch=t.epoch,this.start_date=new Date(t.start_date),this.end_date=new Date(t.end_date),this.name=t.name||"",this.main_field_coeff_g=t.main_field_coeff_g||[0],this.main_field_coeff_h=t.main_field_coeff_h||[0],this.secular_var_coeff_g=t.secular_var_coeff_g||[0],this.secular_var_coeff_h=t.secular_var_coeff_h||[0],this.n_max=t.n_max||0,this.n_max_sec_var=t.n_max_sec_var||0,this.num_terms=this.n_max*(this.n_max+1)/2+this.n_max}w.prototype.getTimedModel=function(t,h=!1){var e=t.getUTCFullYear(),i=(t.valueOf()-Date.UTC(e))/(1e3*3600*24*365),a=e+i,c=a-this.epoch;if(t<this.start_date||t>this.end_date)if(h)console.error("Model is only valid from "+this.start_date.toDateString()+" to "+this.end_date.toDateString());else throw new Error("Model is only valid from "+this.start_date.toDateString()+" to "+this.end_date.toDateString());for(var r=new w({epoch:this.epoch,n_max:this.n_max,n_max_sec_var:this.n_max_sec_var,name:this.name,start_date:this.start_date,end_date:this.end_date}),d=r.n_max_sec_var,s=d*(d+1)/2+d,f=1;f<=this.n_max;f++)for(var l=0;l<=f;l++){var o=f*(f+1)/2+l,n=this.main_field_coeff_h[o],_=this.main_field_coeff_g[o],v=this.secular_var_coeff_h[o],m=this.secular_var_coeff_g[o];o<=s?(r.main_field_coeff_h[o]=n+c*v,r.main_field_coeff_g[o]=_+c*m,r.secular_var_coeff_h[o]=v,r.secular_var_coeff_g[o]=m):(r.main_field_coeff_h[o]=n,r.main_field_coeff_g[o]=_)}return r};w.prototype.getSummation=function(t,h,e){var i=0,a=0,c=0,r,d,s,f,l=h.relative_radius_power,o=h.cos_mlambda,n=h.sin_mlambda,_=this.main_field_coeff_g,v=this.main_field_coeff_h;for(r=1;r<=this.n_max;r++)for(d=0;d<=r;d++)s=r*(r+1)/2+d,c-=l[r]*(_[s]*o[d]+v[s]*n[d])*(r+1)*t.pcup[s],a+=l[r]*(_[s]*n[d]-v[s]*o[d])*d*t.pcup[s],i-=l[r]*(_[s]*o[d]+v[s]*n[d])*t.dpcup[s];var m=Math.cos(Math.PI/180*e.phig);if(Math.abs(m)>1e-10)a=a/m;else{a=0;var M=1,u,p,y=[1],j=Math.sin(Math.PI/180*e.phig);for(r=1;r<=this.n_max;r++)s=r*(r+1)/2+1,u=M*(2*r-1)/r,p=u*Math.sqrt(2*r/(r+1)),M=u,r==1?y[r]=y[r-1]:(f=((r-1)*(r-1)-1)/((2*r-1)*(2*r-3)),y[r]=j*y[r-1]-f*y[r-2]),a+=l[r]*(_[s]*n[1]-v[s]*o[1])*y[r]*p}return new et({bx:i,by:a,bz:c})};w.prototype.point=function(t){var h=t.length>2&&typeof t[2]=="number"?t[2]:0,e=new tt({lat:t[0],lon:t[1],height_above_ellipsoid:h}),i=e.toSpherical(),a=i.getLegendreFunction(this.n_max),c=i.getHarmonicVariables(e.ellipsoid,this.n_max),r=this.getSummation(a,c,i),d=r.rotate(i,e);return at.fromGeoMagneticVector(d)}});var Y=b((ut,rt)=>{rt.exports={main_field_coeff_g:[0,-29351.8,-1410.8,-2556.6,2951.1,1649.3,1361,-2404.1,1243.8,453.6,895,799.5,55.7,-281.1,12.1,-233.2,368.9,187.2,-138.7,-142,20.9,64.4,63.8,76.9,-115.7,-40.9,14.9,-60.7,79.5,-77,-8.8,59.3,15.8,2.5,-11.1,14.2,23.2,10.8,-17.5,2,-21.7,16.9,15,-16.8,.9,4.6,7.8,3,-.2,-2.5,-13.1,2.4,8.6,-8.7,-12.9,-1.3,-6.4,.2,2,-1,-.6,-.9,1.5,.9,-2.7,-3.9,2.9,-1.5,-2.5,2.4,-.6,-.1,-.6,-.1,1.1,-1,-.2,2.6,-2,-.2,.3,1.2,-1.3,.6,.6,.5,-.1,-.4,-.2,-1.3,-.7],main_field_coeff_h:[0,0,4545.4,0,-3133.6,-815.1,0,-56.6,237.5,-549.5,0,278.6,-133.9,212,-375.6,0,45.4,220.2,-122.9,43,106.1,0,-18.4,16.8,48.8,-59.8,10.9,72.7,0,-48.9,-14.4,-1,23.4,-7.4,-25.1,-2.3,0,7.1,-12.6,11.4,-9.7,12.7,.7,-5.2,3.9,0,-24.8,12.2,8.3,-3.3,-5.2,7.2,-.6,.8,10,0,3.3,0,2.4,5.3,-9.1,.4,-4.2,-3.8,.9,-9.1,0,0,2.9,-.6,.2,.5,-.3,-1.2,-1.7,-2.9,-1.8,-2.3,0,-1.3,.7,1,-1.4,0,.6,-.1,.8,.1,-1,.1,.2],secular_var_coeff_g:[0,12,9.7,-11.6,-5.2,-8,-1.3,-4.2,.4,-15.6,-1.6,-2.4,-6,5.6,-7,.6,1.4,0,.6,2.2,.9,-.2,-.4,.9,1.2,-.9,.3,.9,0,-.1,-.1,.5,-.1,-.8,-.8,.8,-.1,.2,0,.5,-.1,.3,.2,0,.2,0,-.1,.1,.3,-.3,0,.3,-.1,.1,-.1,.1,0,.1,.1,0,-.3,0,-.1,-.1,0,0,0,0,0,0,0,-.1,0,0,-.1,-.1,-.1,-.1,0,0,0,0,0,0,.1,0,0,0,-.1,0,-.1],secular_var_coeff_h:[0,0,-21.5,0,-27.7,-12.1,0,4,-.3,-4.1,0,-1.1,4.1,1.6,-4.4,0,-.5,2.2,.4,1.7,1.9,0,.3,-1.6,-.4,.9,.7,.9,0,.6,.5,-.8,0,-1,.6,-.2,0,-.2,.5,-.4,.4,-.5,-.6,.3,.2,0,-.3,.3,-.3,.3,.2,-.1,-.2,.4,.1,0,0,0,-.2,.1,-.1,.1,0,-.1,.2,0,0,0,.1,0,.1,0,0,.1,0,0,0,0,0,0,0,-.1,.1,0,0,0,0,0,0,0,-.1],n_max:12,n_max_sec_var:12,epoch:2025,name:"WMM-2025",start_date:"2024-11-13T03:00:00.000Z",end_date:"2029-11-13T03:00:00.000Z"}});var it=O(),ht=Y();window.WMM={declination:function(t,h,e){return e=e||new Date,new it(ht).getTimedModel(e,!0).point([t,h]).decl}};})();
+
+</script>
 <script>
 const $ = (id) => document.getElementById(id);
 
@@ -392,10 +457,12 @@ function switchTab(name) {
   $("tabAlt").classList.toggle("active", name === "alt");
   $("tabWind").classList.toggle("active", name === "wind");
   $("tabAppr").classList.toggle("active", name === "appr");
+  $("tabRic").classList.toggle("active", name === "ric");
   $("tabBtnLeak").classList.toggle("active", name === "leak");
   $("tabBtnAlt").classList.toggle("active", name === "alt");
   $("tabBtnWind").classList.toggle("active", name === "wind");
   $("tabBtnAppr").classList.toggle("active", name === "appr");
+  $("tabBtnRic").classList.toggle("active", name === "ric");
 }
 
 function nowUTCString() {
@@ -757,6 +824,154 @@ function renderApprThrust() {
 }
 $("apprGw").addEventListener("input", renderApprThrust);
 renderApprThrust();
+
+// ---------------- RIC ROUTE BUILDER ----------------
+// Named waypoints: Jeppesen E-AWM General, North Atlantic Crossing Tracks/Distances (Issue 9 JUL 26)
+const RIC_WAYPOINTS = {"ADARA":[51.5,-15.0],"AGORI":[57.0,-13.0],"AMLAD":[56.25,-10.0],"APSOV":[55.8167,-10.0],"ARMED":[42.5,-14.0],"ATSIX":[60.0,-10.0],"BALIX":[59.0,-10.0],"BANAL":[42.0,-15.0],"BEDRA":[49.0,-15.0],"BEGAS":[45.0,-9.0],"BERUX":[45.0,-11.0],"BILTO":[56.5,-15.0],"BUNAV":[46.5,-8.75],"DETOX":[41.0,-15.0],"DINIM":[51.0,-15.0],"DIXIS":[45.0,-10.0],"DOGAL":[54.0,-15.0],"ERAKA":[58.0,-10.0],"ERPES":[40.0,-15.0],"ETARI":[55.5,-15.0],"ETIKI":[48.0,-8.75],"GOMUP":[57.0,-10.0],"GUNTI":[39.0,-15.0],"HIDRA":[44.5,-13.0],"IBROD":[56.5,-10.0],"KESIX":[56.95,-14.0],"KOGAD":[49.5,-15.0],"KOMUT":[38.0,-15.0],"KOPAS":[44.0,-13.0],"LASNO":[48.6,-9.0],"LIMRI":[52.0,-15.0],"LUTAK":[37.0,-15.0],"LUTOV":[55.2333,-10.0],"MALOT":[53.0,-15.0],"MIMKU":[56.0,-10.0],"MUDOS":[43.5,-13.0],"NEBIN":[53.5,-15.0],"NERTU":[49.0,-14.0],"NIBOG":[55.0,-10.0],"OMOKO":[48.8333,-12.0],"PASAS":[45.0,-13.0],"PIKIL":[56.0,-15.0],"PITAX":[45.0,-12.0],"RATSU":[61.0,-10.0],"RESNO":[55.0,-15.0],"RETEN":[43.0,-13.0],"RODEL":[50.5,-15.0],"SEPAL":[47.0,-8.75],"SIVIR":[46.0,-8.75],"SOMAX":[50.0,-15.0],"SUNOT":[57.0,-15.0],"TOBOR":[52.5,-15.0],"UMLER":[47.5,-8.75],"VENER":[54.5,-15.0],"ALLRY":[50.5,-52.0],"AVPUT":[65.0333,-60.0],"BALOO":[34.4,-62.1333],"BDA":[32.35,-64.6833],"BERUS":[63.0,-63.0],"BOKTO":[56.9667,-58.0],"BUDAR":[50.0,-52.0],"CLAVY":[64.2333,-59.0],"CUDDY":[56.7,-57.0],"DORYY":[56.0333,-57.0],"EMBOK":[63.4667,-58.0],"ENNSO":[55.5333,-57.0],"ELSIR":[49.5,-52.0],"GRIBS":[61.5,-63.0],"HOIST":[55.0333,-57.0],"IBERG":[49.0,-52.0],"IKMAN":[62.5,-63.0],"IRBIM":[58.65,-60.5333],"IRLOK":[54.5333,-57.0],"JANJO":[54.0333,-57.0],"JOOPY":[48.5,-52.0],"KAGLY":[63.5,-63.0],"KENKI":[65.0,-63.0],"KETLA":[62.4667,-58.0],"KODIK":[53.4667,-57.2],"LAZEY":[33.5833,-61.4833],"LOMSI":[53.1,-56.7833],"MAXAR":[61.4667,-58.0],"MELDI":[52.7333,-56.35],"MIBNO":[60.5833,-62.5333],"MOATT":[58.0167,-59.9167],"MUSAK":[48.0,-52.0],"MUSLO":[60.1667,-62.0],"MUSVA":[64.0,-63.0],"NALDI":[64.5,-63.0],"NEEKO":[52.4,-55.8333],"NICSO":[47.5,-52.0],"NIFTY":[60.9667,-58.0],"OMSAT":[47.0,-52.0],"PELTU":[52.1,-55.1667],"PEPKI":[59.7333,-61.6167],"PORTI":[46.5,-52.0],"RADUN":[59.9667,-58.0],"RAFIN":[44.8833,-51.8],"RELIC":[46.0,-52.0],"RIKAL":[51.8,-54.5333],"SAVRY":[59.4667,-58.0],"SAXAN":[51.4833,-53.85],"SINGA":[59.2167,-61.0833],"TOXIT":[58.9667,-58.0],"TUDEP":[51.1667,-53.2333],"UMESI":[50.8333,-52.6],"URTAK":[58.4667,-58.0],"VESMI":[57.9667,-58.0],"YAY":[51.3833,-56.0833],"YQX":[48.9,-54.5333],"YYT":[47.4833,-52.85]};
+
+const ricPoints = [];  // each: {type:'wpt'|'ll', name, latDeg, latMin, lonDeg}
+
+function ricGreatCircle(lat1, lon1, lat2, lon2) {
+  const R = 3440.065;
+  const toRad = d => d * Math.PI / 180;
+  const phi1 = toRad(lat1), phi2 = toRad(lat2);
+  const dphi = toRad(lat2 - lat1), dlambda = toRad(lon2 - lon1);
+  const a = Math.sin(dphi/2)**2 + Math.cos(phi1)*Math.cos(phi2)*Math.sin(dlambda/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const dist = R * c;
+  const y = Math.sin(dlambda) * Math.cos(phi2);
+  const x = Math.cos(phi1)*Math.sin(phi2) - Math.sin(phi1)*Math.cos(phi2)*Math.cos(dlambda);
+  const track = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  return { dist, track };
+}
+
+function ricPointCoords(p) {
+  if (p.type === "wpt") {
+    const c = RIC_WAYPOINTS[p.name];
+    return c ? { lat: c[0], lon: c[1] } : null;
+  }
+  const latDeg = parseFloat(p.latDeg), latMin = parseFloat(p.latMin) || 0, lonDeg = parseFloat(p.lonDeg);
+  if (isNaN(latDeg) || isNaN(lonDeg)) return null;
+  return { lat: latDeg + latMin / 60, lon: -Math.abs(lonDeg) };
+}
+
+function ricPointLabel(p) {
+  if (p.type === "wpt") return p.name || "?";
+  const c = ricPointCoords(p);
+  if (!c) return "?";
+  const latMin = Math.round((c.lat % 1) * 60);
+  return "N" + Math.floor(c.lat) + (latMin ? String(latMin).padStart(2,"0") : "") +
+    "/W" + String(Math.abs(c.lon)).padStart(3,"0");
+}
+
+function ricAddPoint() {
+  ricPoints.push({ type: "wpt", name: "", latDeg: "", latMin: "0", lonDeg: "" });
+  ricRenderPoints();
+}
+
+function ricRemovePoint(idx) {
+  ricPoints.splice(idx, 1);
+  ricRenderPoints();
+}
+
+function ricSetType(idx, type) {
+  ricPoints[idx].type = type;
+  ricRenderPoints();
+}
+
+function ricRenderPoints() {
+  const holder = $("ricPoints");
+  const wptOptions = Object.keys(RIC_WAYPOINTS).sort()
+    .map(n => '<option value="' + n + '">' + n + '</option>').join("");
+
+  holder.innerHTML = ricPoints.map((p, i) => {
+    const typeButtons =
+      '<div class="ric-type-toggle">' +
+        '<button class="' + (p.type === "wpt" ? "active" : "") + '" onclick="ricSetType(' + i + ',\'wpt\')">Named WPT</button>' +
+        '<button class="' + (p.type === "ll" ? "active" : "") + '" onclick="ricSetType(' + i + ',\'ll\')">Lat/Long</button>' +
+      '</div>';
+    let inputRow;
+    if (p.type === "wpt") {
+      inputRow =
+        '<div class="ric-coord-row">' +
+          '<select onchange="ricPoints[' + i + '].name = this.value; ricComputeLegs();">' +
+            '<option value="">&mdash; select waypoint &mdash;</option>' + wptOptions +
+          '</select>' +
+        '</div>';
+    } else {
+      inputRow =
+        '<div class="ric-coord-row">' +
+          '<span class="unit" style="width:14px;">N</span>' +
+          '<input type="number" placeholder="50" value="' + p.latDeg + '" inputmode="numeric" ' +
+            'oninput="ricPoints[' + i + '].latDeg = this.value; ricComputeLegs();">' +
+          '<span class="unit" style="width:8px;">&deg;</span>' +
+          '<input type="number" placeholder="00" value="' + p.latMin + '" inputmode="numeric" min="0" max="59" ' +
+            'oninput="ricPoints[' + i + '].latMin = this.value; ricComputeLegs();">' +
+          '<span class="unit" style="width:10px;">\'</span>' +
+          '<span class="unit" style="width:16px;">W</span>' +
+          '<input type="number" placeholder="40" value="' + p.lonDeg + '" inputmode="numeric" ' +
+            'oninput="ricPoints[' + i + '].lonDeg = this.value; ricComputeLegs();">' +
+          '<span class="unit" style="width:8px;">&deg;</span>' +
+        '</div>';
+    }
+    return '<div class="ric-point">' +
+        '<div class="ric-point-head">' +
+          '<span class="pt-label">POINT ' + (i + 1) + '</span>' +
+          '<button class="pt-remove" onclick="ricRemovePoint(' + i + ')">&times;</button>' +
+        '</div>' + typeButtons + inputRow + '</div>';
+  }).join("");
+
+  // restore select values (innerHTML rebuild resets them)
+  ricPoints.forEach((p, i) => {
+    if (p.type === "wpt" && p.name) {
+      const sel = holder.children[i].querySelector("select");
+      if (sel) sel.value = p.name;
+    }
+  });
+
+  ricComputeLegs();
+}
+
+function ricComputeLegs() {
+  const tbody = $("ricLegs");
+  tbody.innerHTML = "";
+  const coords = ricPoints.map(ricPointCoords);
+  let totalDist = 0;
+  let anyLeg = false;
+
+  for (let i = 0; i < ricPoints.length - 1; i++) {
+    const a = coords[i], b = coords[i + 1];
+    if (!a || !b) continue;
+    anyLeg = true;
+    const gc = ricGreatCircle(a.lat, a.lon, b.lat, b.lon);
+    // magnetic variation at leg midpoint, current date
+    let magTrack = null;
+    try {
+      const midLat = (a.lat + b.lat) / 2, midLon = (a.lon + b.lon) / 2;
+      const decl = WMM.declination(midLat, midLon, new Date());
+      magTrack = (gc.track - decl + 360) % 360;
+    } catch (e) { /* WMM out of validity range */ }
+    totalDist += gc.dist;
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td>' + ricPointLabel(ricPoints[i]) + ' &rarr; ' + ricPointLabel(ricPoints[i+1]) + '</td>' +
+      '<td>' + String(Math.round(gc.track)).padStart(3,"0") + '&deg;</td>' +
+      '<td>' + (magTrack === null ? "&mdash;" : String(Math.round(magTrack)).padStart(3,"0") + '&deg;') + '</td>' +
+      '<td>' + Math.round(gc.dist) + '</td>';
+    tbody.appendChild(tr);
+  }
+
+  if (anyLeg) {
+    const tr = document.createElement("tr");
+    tr.className = "ric-total-row";
+    tr.innerHTML = '<td>TOTAL</td><td></td><td></td><td>' + Math.round(totalDist) + '</td>';
+    tbody.appendChild(tr);
+  }
+}
+
+// seed with two empty points so the tab isn't blank
+ricAddPoint();
+ricAddPoint();
+
 </script>
 </body>
 </html>
