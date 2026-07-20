@@ -357,16 +357,22 @@
         <span class="unit">1000kg</span>
       </div>
       <div class="result-line">
-        <span class="label">Target Pitch</span>
+        <span class="label">Target Pitch (CONF 3)</span>
         <span class="value ok">4&deg;</span>
       </div>
       <div class="result-line">
-        <span class="label">Target Thrust (%N1)</span>
+        <span class="label">Target Thrust (CONF 3, %N1)</span>
         <span class="value" id="apprN1">&mdash;</span>
       </div>
-      <div style="font-size:10.5px; color:var(--amber); margin-top:10px; line-height:1.5;">
-        &#9888; QRH only publishes this for CONF 3. No CONF FULL entry exists in this table &mdash;
-        if landing FULL, treat this as a starting reference and adjust to the speed trend.
+      <div class="result-line" style="border-top-style:dashed; border-top-color:var(--amber-dim);">
+        <span class="label" style="color:var(--amber);">Est. CONF FULL (unverified)</span>
+        <span class="value caution" id="apprN1Full">&mdash;</span>
+      </div>
+      <div style="font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.5;">
+        &#9888; QRH only publishes CONF 3 &mdash; no FULL row exists in this table (the unreliable-speed memory
+        item's own "CONF 3 if FULL" instruction confirms this). The FULL estimate above simply reuses the CONF 3
+        number, reasoned from FULL's extra drag vs. its ~5kt lower VAPP roughly offsetting &mdash; not independently
+        sourced data. Treat it as a starting point, not a verified figure.
       </div>
     </div>
   </div>
@@ -739,12 +745,15 @@ function renderApprThrust() {
   const gw = parseFloat($("apprGw").value);
   if (isNaN(gw)) {
     $("apprN1").textContent = "\u2014";
+    $("apprN1Full").textContent = "\u2014";
     return;
   }
   // QRH ABN-23.03F: exactly 0.1%N1 per tonne (240t/50%, 200t/46%, 160t/42%, 120t/38%)
   const apprN1 = 38 + 0.1 * (gw - 120);
   $("apprN1").textContent = apprN1.toFixed(1) + "%";
   $("apprN1").className = "value " + (gw >= 120 && gw <= 240 ? "ok" : "caution");
+  // Unverified FULL estimate: reuses the CONF 3 number (see explanatory note in the UI)
+  $("apprN1Full").textContent = "~" + apprN1.toFixed(1) + "%";
 }
 $("apprGw").addEventListener("input", renderApprThrust);
 renderApprThrust();
