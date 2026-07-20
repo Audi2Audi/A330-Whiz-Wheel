@@ -91,6 +91,32 @@
   .row input:focus { outline: none; border-color: var(--amber); }
   .row .unit { font-family: var(--mono); font-size: 12px; color: var(--muted); width: 34px; }
 
+  /* ---------------- TOGGLE SWITCH ---------------- */
+  .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider {
+    position: absolute; cursor: pointer; inset: 0; background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 28px; transition: 0.2s;
+  }
+  .switch .slider::before {
+    position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px;
+    background: var(--muted); border-radius: 50%; transition: 0.2s;
+  }
+  .switch input:checked + .slider { background: var(--amber-dim); border-color: var(--amber); }
+  .switch input:checked + .slider::before { transform: translateX(22px); background: var(--amber); }
+
+  /* ---------------- CHECKLIST ---------------- */
+  .checklist-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12px;
+  }
+  .checklist-row:last-child { border-bottom: none; }
+  .checklist-row .cl-label { color: var(--text); }
+  .checklist-row .cl-sub { color: var(--muted); font-size: 10.5px; display: block; }
+  .checklist-row .cl-mark { font-size: 16px; font-weight: 700; }
+  .checklist-row .cl-mark.pass { color: var(--green); }
+  .checklist-row .cl-mark.fail { color: #ff5a5a; }
+
   .echo {
     font-family: var(--mono); font-size: 10.5px; color: var(--muted); text-align: right;
     margin: -6px 0 8px; padding-right: 44px;
@@ -283,7 +309,7 @@
         <span class="label" id="xwLabel">Crosswind</span>
         <span class="value" id="xwValue">&mdash;</span>
       </div>
-      <div id="xwVerdict" style="margin-top:10px; padding:10px 12px; border-radius:8px; font-size:12.5px; font-weight:600; text-align:center; line-height:1.5;">&mdash;</div>
+      <div id="xwChecklist" style="margin-top:10px;"></div>
     </div>
 
     <div class="card">
@@ -303,8 +329,10 @@
       </div>
       <div class="row">
         <label for="gdOei">Engine Out</label>
-        <input type="checkbox" id="gdOei" style="width:24px; height:24px; accent-color:var(--amber);">
-        <span class="unit">&nbsp;</span>
+        <label class="switch">
+          <input type="checkbox" id="gdOei">
+          <span class="slider"></span>
+        </label>
       </div>
       <div class="result-line">
         <span class="label">Green Dot</span>
@@ -603,9 +631,18 @@ function renderLeak() {
 renderLeak();
 
 // ---------------- CROSSWIND / TAILWIND ----------------
-const XW_TO_LIMIT = 32;   // max certified crosswind, take-off (gust incl.)
-const XW_LDG_LIMIT = 40;  // max demonstrated crosswind, landing (gust incl.)
-const TW_LIMIT = 10;      // max tailwind, either phase
+const XW_TO_LIMIT = 32;      // max certified crosswind, take-off (gust incl.)
+const XW_LDG_LIMIT = 40;     // max demonstrated crosswind, landing (gust incl.)
+const XW_AUTOLAND_LIMIT = 20; // autoland crosswind (15kt in the US)
+const XW_ETOPS_LIMIT = 32;   // ETOPS alternate: 80% of 40kt max demonstrated
+const TW_LIMIT = 10;         // max tailwind, either phase
+
+function checklistRow(label, sub, pass) {
+  return `<div class="checklist-row">
+    <div><span class="cl-label">${label}</span>${sub ? `<span class="cl-sub">${sub}</span>` : ""}</div>
+    <span class="cl-mark ${pass ? "pass" : "fail"}">${pass ? "\u2713" : "\u2717"}</span>
+  </div>`;
+}
 
 function renderWind() {
   const windDir = parseFloat($("windDir").value);
@@ -615,9 +652,7 @@ function renderWind() {
   if (isNaN(windDir) || isNaN(windSpd) || isNaN(rwy)) {
     $("hwValue").textContent = "\u2014";
     $("xwValue").textContent = "\u2014";
-    $("xwVerdict").textContent = "Enter wind and runway.";
-    $("xwVerdict").style.background = "var(--panel2)";
-    $("xwVerdict").style.color = "var(--muted)";
+    $("xwChecklist").innerHTML = "";
     return;
   }
 
@@ -628,41 +663,22 @@ function renderWind() {
   const headwind = windSpd * Math.cos(relRad);
   const crosswind = windSpd * Math.sin(relRad);
   const absX = Math.abs(crosswind);
+  const tailwind = Math.max(0, -headwind);
 
   $("hwLabel").textContent = headwind >= 0 ? "Headwind" : "Tailwind";
   $("hwValue").textContent = Math.abs(headwind).toFixed(0) + " kt";
-  $("hwValue").className = "value " + (headwind < -TW_LIMIT ? "warn" : headwind < 0 ? "caution" : "ok");
+  $("hwValue").className = "value " + (tailwind > TW_LIMIT ? "warn" : tailwind > 0 ? "caution" : "ok");
 
   $("xwLabel").textContent = "Crosswind (from the " + (crosswind >= 0 ? "right" : "left") + ")";
   $("xwValue").textContent = absX.toFixed(0) + " kt";
   $("xwValue").className = "value " + (absX >= XW_TO_LIMIT ? "warn" : absX >= XW_TO_LIMIT * 0.8 ? "caution" : "ok");
 
-  const verdict = $("xwVerdict");
-  const lines = [];
-  if (absX >= XW_TO_LIMIT) {
-    lines.push(`Exceeds 32kt take-off crosswind limit.`);
-  } else if (absX >= XW_TO_LIMIT * 0.8) {
-    lines.push(`Approaching 32kt take-off crosswind limit.`);
-  } else {
-    lines.push(`Within 32kt take-off crosswind limit.`);
-  }
-  if (absX >= XW_LDG_LIMIT) {
-    lines.push(`Exceeds 40kt max demonstrated landing crosswind.`);
-  }
-  if (headwind < -TW_LIMIT) {
-    lines.push(`Exceeds 10kt max tailwind limit.`);
-  }
-  verdict.innerHTML = lines.join("<br>");
-  if (absX >= XW_TO_LIMIT || headwind < -TW_LIMIT) {
-    verdict.style.background = "rgba(255,90,90,0.15)";
-    verdict.style.color = "#ff6b6b";
-  } else if (absX >= XW_TO_LIMIT * 0.8) {
-    verdict.style.background = "rgba(255,213,74,0.15)";
-    verdict.style.color = "#ffd54a";
-  } else {
-    verdict.style.background = "rgba(61,220,132,0.15)";
-    verdict.style.color = "var(--green)";
-  }
+  $("xwChecklist").innerHTML =
+    checklistRow("Take-off crosswind", `32kt certified limit`, absX < XW_TO_LIMIT) +
+    checklistRow("Landing crosswind", `40kt max demonstrated`, absX < XW_LDG_LIMIT) +
+    checklistRow("Autoland crosswind", `20kt (15kt in the U.S.)`, absX < XW_AUTOLAND_LIMIT) +
+    checklistRow("ETOPS alternate crosswind", `32kt (80% of 40kt demonstrated)`, absX < XW_ETOPS_LIMIT) +
+    checklistRow("Tailwind", `10kt limit, take-off &amp; landing`, tailwind < TW_LIMIT);
 }
 ["windDir", "windSpd", "rwy"].forEach((id) => $(id).addEventListener("input", renderWind));
 renderWind();
