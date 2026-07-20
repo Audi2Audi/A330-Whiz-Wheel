@@ -86,6 +86,9 @@
     font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--green);
   }
   .result-line .value.now { color: var(--amber); }
+  .result-line .value.ok { color: var(--green); }
+  .result-line .value.caution { color: #ffd54a; }
+  .result-line .value.warn { color: #ff5a5a; }
 
   /* ---------------- TABLE ---------------- */
   table { width: 100%; border-collapse: collapse; margin-top: 4px; }
@@ -389,6 +392,13 @@ render();
 
 // ---------------- FUEL LEAK CHECK ----------------
 const LEAK_TOLERANCE_KG = 150; // normal fuel system indication accuracy margin
+const LEAK_WARN_KG = 500;      // beyond this, treat as a clear/urgent indication
+
+function severityClass(absDiff) {
+  if (absDiff < LEAK_TOLERANCE_KG) return "ok";
+  if (absDiff < LEAK_WARN_KG) return "caution";
+  return "warn";
+}
 
 function renderLeak() {
   const fob1 = parseFloat($("fob1").value);
@@ -400,7 +410,9 @@ function renderLeak() {
 
   if ([fob1, fu1, fob2, fu2].some((v) => isNaN(v)) || !t1 || !t2) {
     $("leakValue").textContent = "\u2014";
+    $("leakValue").className = "value";
     $("leakInterval").textContent = "\u2014";
+    $("leakInterval").className = "value";
     $("leakVerdict").textContent = "Enter both readings to check.";
     $("leakVerdict").style.background = "var(--panel2)";
     $("leakVerdict").style.color = "var(--muted)";
@@ -410,6 +422,7 @@ function renderLeak() {
   const check1 = fob1 + fu1;
   const check2 = fob2 + fu2;
   const diff = check2 - check1;
+  const sevClass = severityClass(Math.abs(diff));
 
   let t1min = parseUTC(t1);
   let t2min = parseUTC(t2);
@@ -418,7 +431,9 @@ function renderLeak() {
   const elapsedHrs = elapsed / 60;
 
   $("leakValue").textContent = (diff > 0 ? "+" : "") + diff.toFixed(0) + " kg";
+  $("leakValue").className = "value " + sevClass;
   $("leakInterval").textContent = elapsed + " min" + (elapsedHrs > 0 ? ` (${(Math.abs(diff) / elapsedHrs).toFixed(0)} kg/hr)` : "");
+  $("leakInterval").className = "value " + sevClass;
 
   const verdict = $("leakVerdict");
   if (elapsed < 30) {
