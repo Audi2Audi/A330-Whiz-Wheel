@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>A330 Whiz Wheel</title>
+<style>
+  :root {
+    --bg: #0a0d10;
+    --panel: #12171c;
+    --panel2: #1a2129;
+    --line: #26313b;
+    --amber: #ffb300;
+    --amber-dim: #7a5a1a;
+    --green: #3ddc84;
+    --green-dim: #1f5c3a;
+    --text: #e8edf1;
+    --muted: #7c8b96;
+    --mono: 'SF Mono', 'Roboto Mono', 'Courier New', monospace;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  body {
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap { max-width: 480px; margin: 0 auto; padding: 18px 16px 40px; }
+
+  header { text-align: center; margin-bottom: 6px; }
+  header .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.25em; color: var(--amber);
+    text-transform: uppercase; opacity: 0.85;
+  }
+  header h1 {
+    font-size: 22px; margin: 4px 0 2px; letter-spacing: 0.02em; font-weight: 700;
+  }
+  header .sub { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+
+  /* ---------------- DIAL ---------------- */
+  .dial-wrap { position: relative; margin: 14px auto 6px; width: 280px; height: 280px; }
+  .dial-readout {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -46%);
+    text-align: center; pointer-events: none;
+  }
+  .dial-readout .fl {
+    font-family: var(--mono); font-size: 44px; font-weight: 700; color: var(--green);
+    line-height: 1; text-shadow: 0 0 18px rgba(61,220,132,0.35);
+  }
+  .dial-readout .fl-label {
+    font-size: 10px; letter-spacing: 0.2em; color: var(--muted); margin-top: 2px;
+  }
+  .dial-readout .wt {
+    font-family: var(--mono); font-size: 13px; color: var(--text); margin-top: 10px;
+  }
+
+  /* ---------------- INPUT CARD ---------------- */
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px 16px; margin-top: 14px;
+  }
+  .card + .card { margin-top: 10px; }
+  .card h2 {
+    font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--amber);
+    margin: 0 0 10px; font-weight: 600;
+  }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .row:last-child { margin-bottom: 0; }
+  .row label { font-size: 13px; color: var(--muted); flex: 1; }
+  .row input {
+    font-family: var(--mono); font-size: 17px; font-weight: 600; color: var(--text);
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; width: 118px; text-align: right;
+  }
+  .row input:focus { outline: none; border-color: var(--amber); }
+  .row .unit { font-family: var(--mono); font-size: 12px; color: var(--muted); width: 34px; }
+
+  .result-line {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-top: 10px; margin-top: 8px; border-top: 1px dashed var(--line);
+  }
+  .result-line .label { font-size: 12px; color: var(--muted); }
+  .result-line .value {
+    font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--green);
+  }
+  .result-line .value.now { color: var(--amber); }
+
+  /* ---------------- TABLE ---------------- */
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th, td {
+    font-family: var(--mono); font-size: 13px; text-align: right; padding: 7px 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  th { color: var(--muted); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+  td:first-child, th:first-child { text-align: left; }
+  tr.available td { color: var(--green); }
+  tr.unavailable td { color: var(--text); }
+  tr.now-row td { color: var(--amber); font-weight: 700; }
+
+  footer { text-align: center; margin-top: 20px; font-size: 10.5px; color: var(--muted); line-height: 1.6; }
+  footer .rule { color: var(--amber); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">A330 &middot; Rule of Thumb</div>
+    <h1>Whiz Wheel</h1>
+    <div class="sub">595 &minus; Gross Weight (t) = Max Flight Level</div>
+  </header>
+
+  <div class="dial-wrap">
+    <svg id="dial" viewBox="0 0 280 280" width="280" height="280"></svg>
+    <div class="dial-readout">
+      <div class="fl" id="dialFL">FL370</div>
+      <div class="fl-label">MAX ALTITUDE NOW</div>
+      <div class="wt" id="dialWt">225.0 t GW</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Current State</h2>
+    <div class="row">
+      <label for="gw">Gross Weight</label>
+      <input type="number" id="gw" value="225.0" step="0.5" inputmode="decimal">
+      <span class="unit">1000kg</span>
+    </div>
+    <div class="row">
+      <label for="burn">Fuel Burn Rate</label>
+      <input type="number" id="burn" value="5.5" step="0.1" inputmode="decimal">
+      <span class="unit">t/hr</span>
+    </div>
+    <div class="row">
+      <label for="utc">Current Time</label>
+      <input type="time" id="utc" step="60">
+      <span class="unit">UTC</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Time to Requested Level</h2>
+    <div class="row">
+      <label for="target">ATC Requests</label>
+      <input type="number" id="target" value="390" step="10" inputmode="numeric">
+      <span class="unit">FL</span>
+    </div>
+    <div class="result-line">
+      <span class="label" id="resultLabel">Weight to burn</span>
+      <span class="value" id="resultValue">&mdash;</span>
+    </div>
+    <div class="result-line">
+      <span class="label">Accept at</span>
+      <span class="value" id="etaValue">&mdash;</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Quick Reference</h2>
+    <table>
+      <thead>
+        <tr><th>FL</th><th>Req. GW</th><th>ETA UTC</th></tr>
+      </thead>
+      <tbody id="refTable"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    <span class="rule">Rule-of-thumb estimate only.</span><br>
+    Always confirm against FCOM/FCTM performance data and current OFP figures before accepting an ATC altitude assignment.
+  </footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function nowUTCString() {
+  const d = new Date();
+  const h = String(d.getUTCHours()).padStart(2, "0");
+  const m = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+$("utc").value = nowUTCString();
+
+function maxFL(weightT) {
+  return 595 - weightT;
+}
+function requiredWeightT(fl) {
+  return 595 - fl;
+}
+function parseUTC(str) {
+  const [h, m] = str.split(":").map(Number);
+  return h * 60 + m; // minutes since 0000Z
+}
+function formatUTCFromMinutes(totalMin) {
+  let m = Math.round(totalMin) % 1440;
+  if (m < 0) m += 1440;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}Z`;
+}
+
+function drawDial(weightT) {
+  const svg = $("dial");
+  svg.innerHTML = "";
+  const cx = 140, cy = 140, r = 118;
+  const startAngle = -220, endAngle = 40; // degrees, sweep across bottom-open arc
+  const minFL = 280, maxFLv = 410;
+
+  function angleForFL(fl) {
+    const frac = (fl - minFL) / (maxFLv - minFL);
+    return startAngle + frac * (endAngle - startAngle);
+  }
+  function point(angleDeg, radius) {
+    const a = (angleDeg * Math.PI) / 180;
+    return [cx + radius * Math.cos(a), cy + radius * Math.sin(a)];
+  }
+  function arcPath(a1, a2, radius) {
+    const [x1, y1] = point(a1, radius);
+    const [x2, y2] = point(a2, radius);
+    const large = Math.abs(a2 - a1) > 180 ? 1 : 0;
+    return `M ${x1} ${y1} A ${radius} ${radius} 0 ${large} 1 ${x2} ${y2}`;
+  }
+
+  const ns = "http://www.w3.org/2000/svg";
+  function el(tag, attrs) {
+    const e = document.createElementNS(ns, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  // background track
+  svg.appendChild(el("path", {
+    d: arcPath(startAngle, endAngle, r),
+    fill: "none", stroke: "#1c242b", "stroke-width": 14, "stroke-linecap": "round",
+  }));
+
+  const curFL = maxFL(weightT);
+  const clampedFL = Math.max(minFL, Math.min(maxFLv, curFL));
+  const availAngle = angleForFL(clampedFL);
+
+  // available range (green) from minFL to current max FL
+  svg.appendChild(el("path", {
+    d: arcPath(startAngle, availAngle, r),
+    fill: "none", stroke: "#3ddc84", "stroke-width": 14, "stroke-linecap": "round", opacity: "0.85",
+  }));
+
+  // tick marks every 10 FL
+  for (let fl = minFL; fl <= maxFLv; fl += 10) {
+    const a = angleForFL(fl);
+    const isMajor = fl % 20 === 0;
+    const [ix, iy] = point(a, r - 9);
+    const [ox, oy] = point(a, r + 9);
+    svg.appendChild(el("line", {
+      x1: ix, y1: iy, x2: ox, y2: oy,
+      stroke: isMajor ? "#e8edf1" : "#5a6772", "stroke-width": isMajor ? 2.2 : 1.4,
+    }));
+    if (isMajor) {
+      const [lx, ly] = point(a, r + 24);
+      const t = el("text", {
+        x: lx, y: ly + 4, fill: "#7c8b96", "font-size": "10", "font-family": "monospace",
+        "text-anchor": "middle",
+      });
+      t.textContent = fl;
+      svg.appendChild(t);
+    }
+  }
+
+  // needle
+  const needleAngle = angleForFL(clampedFL);
+  const [nx, ny] = point(needleAngle, r - 4);
+  svg.appendChild(el("line", {
+    x1: cx, y1: cy, x2: nx, y2: ny,
+    stroke: "#ffb300", "stroke-width": 3, "stroke-linecap": "round",
+  }));
+  svg.appendChild(el("circle", { cx, cy, r: 7, fill: "#ffb300" }));
+}
+
+function render() {
+  const gw = parseFloat($("gw").value) || 0;
+  const burn = parseFloat($("burn").value) || 0.001;
+  const target = parseFloat($("target").value) || 0;
+  const utcMin = parseUTC($("utc").value || "00:00");
+
+  const curMaxFL = Math.round(maxFL(gw) / 10) * 10;
+  $("dialFL").textContent = "FL" + curMaxFL;
+  $("dialWt").textContent = gw.toFixed(1) + " t GW";
+  drawDial(gw);
+
+  // target level calc
+  const reqWeight = requiredWeightT(target);
+  const weightToBurn = gw - reqWeight;
+
+  if (weightToBurn <= 0) {
+    $("resultLabel").textContent = "Status";
+    $("resultValue").textContent = "Available now";
+    $("resultValue").className = "value now";
+    $("etaValue").textContent = formatUTCFromMinutes(utcMin);
+  } else {
+    const hoursToBurn = weightToBurn / burn;
+    const etaMin = utcMin + hoursToBurn * 60;
+    $("resultLabel").textContent = "Weight to burn";
+    $("resultValue").textContent = weightToBurn.toFixed(1) + " t";
+    $("resultValue").className = "value";
+    $("etaValue").textContent = formatUTCFromMinutes(etaMin);
+  }
+
+  // reference table
+  const tbody = $("refTable");
+  tbody.innerHTML = "";
+  const levels = [290, 310, 330, 350, 370, 390, 400, 410];
+  for (const fl of levels) {
+    const req = requiredWeightT(fl);
+    const toBurn = gw - req;
+    const tr = document.createElement("tr");
+    let etaCell, statusClass;
+    if (toBurn <= 0) {
+      etaCell = "now";
+      statusClass = "available";
+    } else {
+      const hrs = toBurn / burn;
+      etaCell = formatUTCFromMinutes(utcMin + hrs * 60);
+      statusClass = "unavailable";
+    }
+    if (fl === curMaxFL) statusClass = "now-row";
+    tr.className = statusClass;
+    tr.innerHTML = `<td>FL${fl}</td><td>${req.toFixed(1)}t</td><td>${etaCell}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+["gw", "burn", "utc", "target"].forEach((id) => {
+  $(id).addEventListener("input", render);
+});
+render();
+</script>
+</body>
+</html>
