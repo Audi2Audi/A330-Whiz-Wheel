@@ -133,8 +133,9 @@
   </header>
 
   <div class="tabbar">
-    <button class="tabbtn active" id="tabBtnLeak" onclick="switchTab('leak')">Fuel Leak Check</button>
-    <button class="tabbtn" id="tabBtnAlt" onclick="switchTab('alt')">Altitude Calculator</button>
+    <button class="tabbtn active" id="tabBtnLeak" onclick="switchTab('leak')">Fuel Leak</button>
+    <button class="tabbtn" id="tabBtnAlt" onclick="switchTab('alt')">Altitude</button>
+    <button class="tabbtn" id="tabBtnWind" onclick="switchTab('wind')">Wind &amp; Speeds</button>
   </div>
 
   <!-- ================= TAB: FUEL LEAK ================= -->
@@ -255,6 +256,63 @@
     </div>
   </div>
 
+  <!-- ================= TAB: WIND & SPEEDS ================= -->
+  <div class="tabpanel" id="tabWind">
+    <div class="card">
+      <h2>Crosswind Component</h2>
+      <div class="row">
+        <label for="windDir">Wind Direction</label>
+        <input type="number" id="windDir" value="270" step="10" inputmode="numeric" min="0" max="360">
+        <span class="unit">&deg;M</span>
+      </div>
+      <div class="row">
+        <label for="windSpd">Wind Speed</label>
+        <input type="number" id="windSpd" value="20" step="1" inputmode="numeric">
+        <span class="unit">kt</span>
+      </div>
+      <div class="row">
+        <label for="rwy">Runway</label>
+        <input type="number" id="rwy" value="27" step="1" inputmode="numeric" min="1" max="36">
+        <span class="unit">&nbsp;</span>
+      </div>
+      <div class="result-line">
+        <span class="label" id="hwLabel">Headwind</span>
+        <span class="value" id="hwValue">&mdash;</span>
+      </div>
+      <div class="result-line">
+        <span class="label" id="xwLabel">Crosswind</span>
+        <span class="value" id="xwValue">&mdash;</span>
+      </div>
+      <div id="xwVerdict" style="margin-top:10px; padding:10px 12px; border-radius:8px; font-size:12.5px; font-weight:600; text-align:center; line-height:1.5;">&mdash;</div>
+    </div>
+
+    <div class="card">
+      <h2>Green Dot Speed</h2>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
+        Rule of thumb (FCOM DSC-22_10-50-20): 0.6 &times; weight(t) + 107kt below FL200, +1kt per 1,000ft above FL200, &minus;10kt one engine out.
+      </div>
+      <div class="row">
+        <label for="gdWeight">Gross Weight</label>
+        <input type="number" id="gdWeight" value="225.0" step="0.5" inputmode="decimal">
+        <span class="unit">1000kg</span>
+      </div>
+      <div class="row">
+        <label for="gdAlt">Altitude</label>
+        <input type="number" id="gdAlt" value="350" step="10" inputmode="numeric">
+        <span class="unit">FL</span>
+      </div>
+      <div class="row">
+        <label for="gdOei">Engine Out</label>
+        <input type="checkbox" id="gdOei" style="width:24px; height:24px; accent-color:var(--amber);">
+        <span class="unit">&nbsp;</span>
+      </div>
+      <div class="result-line">
+        <span class="label">Green Dot</span>
+        <span class="value" id="gdValue">&mdash;</span>
+      </div>
+    </div>
+  </div>
+
   <footer>
     <span class="rule">Rule-of-thumb estimate only.</span><br>
     Always confirm against FCOM/FCTM performance data and current OFP figures before accepting an ATC altitude assignment.
@@ -268,8 +326,10 @@ const $ = (id) => document.getElementById(id);
 function switchTab(name) {
   $("tabLeak").classList.toggle("active", name === "leak");
   $("tabAlt").classList.toggle("active", name === "alt");
+  $("tabWind").classList.toggle("active", name === "wind");
   $("tabBtnLeak").classList.toggle("active", name === "leak");
   $("tabBtnAlt").classList.toggle("active", name === "alt");
+  $("tabBtnWind").classList.toggle("active", name === "wind");
 }
 
 function nowUTCString() {
@@ -541,6 +601,90 @@ function renderLeak() {
 
 ["time1", "time2"].forEach((id) => $(id).addEventListener("input", renderLeak));
 renderLeak();
+
+// ---------------- CROSSWIND / TAILWIND ----------------
+const XW_TO_LIMIT = 32;   // max certified crosswind, take-off (gust incl.)
+const XW_LDG_LIMIT = 40;  // max demonstrated crosswind, landing (gust incl.)
+const TW_LIMIT = 10;      // max tailwind, either phase
+
+function renderWind() {
+  const windDir = parseFloat($("windDir").value);
+  const windSpd = parseFloat($("windSpd").value);
+  const rwy = parseFloat($("rwy").value);
+
+  if (isNaN(windDir) || isNaN(windSpd) || isNaN(rwy)) {
+    $("hwValue").textContent = "\u2014";
+    $("xwValue").textContent = "\u2014";
+    $("xwVerdict").textContent = "Enter wind and runway.";
+    $("xwVerdict").style.background = "var(--panel2)";
+    $("xwVerdict").style.color = "var(--muted)";
+    return;
+  }
+
+  const rwyHeading = rwy * 10;
+  let rel = windDir - rwyHeading;
+  rel = ((rel + 180) % 360 + 360) % 360 - 180;
+  const relRad = (rel * Math.PI) / 180;
+  const headwind = windSpd * Math.cos(relRad);
+  const crosswind = windSpd * Math.sin(relRad);
+  const absX = Math.abs(crosswind);
+
+  $("hwLabel").textContent = headwind >= 0 ? "Headwind" : "Tailwind";
+  $("hwValue").textContent = Math.abs(headwind).toFixed(0) + " kt";
+  $("hwValue").className = "value " + (headwind < -TW_LIMIT ? "warn" : headwind < 0 ? "caution" : "ok");
+
+  $("xwLabel").textContent = "Crosswind (from the " + (crosswind >= 0 ? "right" : "left") + ")";
+  $("xwValue").textContent = absX.toFixed(0) + " kt";
+  $("xwValue").className = "value " + (absX >= XW_TO_LIMIT ? "warn" : absX >= XW_TO_LIMIT * 0.8 ? "caution" : "ok");
+
+  const verdict = $("xwVerdict");
+  const lines = [];
+  if (absX >= XW_TO_LIMIT) {
+    lines.push(`Exceeds 32kt take-off crosswind limit.`);
+  } else if (absX >= XW_TO_LIMIT * 0.8) {
+    lines.push(`Approaching 32kt take-off crosswind limit.`);
+  } else {
+    lines.push(`Within 32kt take-off crosswind limit.`);
+  }
+  if (absX >= XW_LDG_LIMIT) {
+    lines.push(`Exceeds 40kt max demonstrated landing crosswind.`);
+  }
+  if (headwind < -TW_LIMIT) {
+    lines.push(`Exceeds 10kt max tailwind limit.`);
+  }
+  verdict.innerHTML = lines.join("<br>");
+  if (absX >= XW_TO_LIMIT || headwind < -TW_LIMIT) {
+    verdict.style.background = "rgba(255,90,90,0.15)";
+    verdict.style.color = "#ff6b6b";
+  } else if (absX >= XW_TO_LIMIT * 0.8) {
+    verdict.style.background = "rgba(255,213,74,0.15)";
+    verdict.style.color = "#ffd54a";
+  } else {
+    verdict.style.background = "rgba(61,220,132,0.15)";
+    verdict.style.color = "var(--green)";
+  }
+}
+["windDir", "windSpd", "rwy"].forEach((id) => $(id).addEventListener("input", renderWind));
+renderWind();
+
+// ---------------- GREEN DOT SPEED ----------------
+function renderGreenDot() {
+  const w = parseFloat($("gdWeight").value);
+  const fl = parseFloat($("gdAlt").value);
+  const oei = $("gdOei").checked;
+  if (isNaN(w) || isNaN(fl)) {
+    $("gdValue").textContent = "\u2014";
+    return;
+  }
+  const altFt = fl * 100;
+  let gd = 0.6 * w + 107;
+  if (altFt > 20000) gd += (altFt - 20000) / 1000;
+  if (oei) gd -= 10;
+  $("gdValue").textContent = Math.round(gd) + " kt" + (oei ? " (OEI)" : "");
+  $("gdValue").className = "value " + (oei ? "caution" : "ok");
+}
+["gdWeight", "gdAlt", "gdOei"].forEach((id) => $(id).addEventListener("input", renderGreenDot));
+renderGreenDot();
 </script>
 </body>
 </html>
