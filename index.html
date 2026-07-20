@@ -166,6 +166,58 @@
     </table>
   </div>
 
+  <div class="card" id="leakCard">
+    <h2>Fuel Leak Check <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">&mdash; "the Dave Technique"</span></h2>
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
+      Per FCOM [QRH] FUEL LEAK / FCTM: FOB + FU should stay constant over time.
+      Take two readings &ge;30 min apart (or at the next waypoint) and compare.
+    </div>
+
+    <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin-bottom:4px;">READING 1</div>
+    <div class="row">
+      <label for="fob1">FOB</label>
+      <input type="number" id="fob1" placeholder="18400" inputmode="numeric">
+      <span class="unit">kg</span>
+    </div>
+    <div class="row">
+      <label for="fu1">FU (Fuel Used)</label>
+      <input type="number" id="fu1" placeholder="4200" inputmode="numeric">
+      <span class="unit">kg</span>
+    </div>
+    <div class="row">
+      <label for="time1">Time</label>
+      <input type="time" id="time1" step="60">
+      <span class="unit">UTC</span>
+    </div>
+
+    <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin:12px 0 4px;">READING 2</div>
+    <div class="row">
+      <label for="fob2">FOB</label>
+      <input type="number" id="fob2" placeholder="17800" inputmode="numeric">
+      <span class="unit">kg</span>
+    </div>
+    <div class="row">
+      <label for="fu2">FU (Fuel Used)</label>
+      <input type="number" id="fu2" placeholder="4500" inputmode="numeric">
+      <span class="unit">kg</span>
+    </div>
+    <div class="row">
+      <label for="time2">Time</label>
+      <input type="time" id="time2" step="60">
+      <span class="unit">UTC</span>
+    </div>
+
+    <div class="result-line">
+      <span class="label" id="leakLabel">Discrepancy [(FOB2+FU2) &minus; (FOB1+FU1)]</span>
+      <span class="value" id="leakValue">&mdash;</span>
+    </div>
+    <div class="result-line">
+      <span class="label">Interval</span>
+      <span class="value" id="leakInterval">&mdash;</span>
+    </div>
+    <div id="leakVerdict" style="margin-top:10px; padding:10px 12px; border-radius:8px; font-size:13px; font-weight:600; text-align:center;">&mdash;</div>
+  </div>
+
   <footer>
     <span class="rule">Rule-of-thumb estimate only.</span><br>
     Always confirm against FCOM/FCTM performance data and current OFP figures before accepting an ATC altitude assignment.
@@ -334,6 +386,64 @@ function render() {
   $(id).addEventListener("input", render);
 });
 render();
+
+// ---------------- FUEL LEAK CHECK ----------------
+const LEAK_TOLERANCE_KG = 150; // normal fuel system indication accuracy margin
+
+function renderLeak() {
+  const fob1 = parseFloat($("fob1").value);
+  const fu1 = parseFloat($("fu1").value);
+  const fob2 = parseFloat($("fob2").value);
+  const fu2 = parseFloat($("fu2").value);
+  const t1 = $("time1").value;
+  const t2 = $("time2").value;
+
+  if ([fob1, fu1, fob2, fu2].some((v) => isNaN(v)) || !t1 || !t2) {
+    $("leakValue").textContent = "\u2014";
+    $("leakInterval").textContent = "\u2014";
+    $("leakVerdict").textContent = "Enter both readings to check.";
+    $("leakVerdict").style.background = "var(--panel2)";
+    $("leakVerdict").style.color = "var(--muted)";
+    return;
+  }
+
+  const check1 = fob1 + fu1;
+  const check2 = fob2 + fu2;
+  const diff = check2 - check1;
+
+  let t1min = parseUTC(t1);
+  let t2min = parseUTC(t2);
+  let elapsed = t2min - t1min;
+  if (elapsed < 0) elapsed += 1440; // crossed midnight Z
+  const elapsedHrs = elapsed / 60;
+
+  $("leakValue").textContent = (diff > 0 ? "+" : "") + diff.toFixed(0) + " kg";
+  $("leakInterval").textContent = elapsed + " min" + (elapsedHrs > 0 ? ` (${(Math.abs(diff) / elapsedHrs).toFixed(0)} kg/hr)` : "");
+
+  const verdict = $("leakVerdict");
+  if (elapsed < 30) {
+    verdict.textContent = `Interval only ${elapsed} min \u2014 FCTM recommends \u226530 min between checks for a reliable result.`;
+    verdict.style.background = "var(--panel2)";
+    verdict.style.color = "var(--muted)";
+  } else if (diff <= -LEAK_TOLERANCE_KG) {
+    verdict.textContent = `SUSPECT FUEL LEAK \u2014 losing ~${(Math.abs(diff) / elapsedHrs).toFixed(0)} kg/hr beyond FU. Refer to QRH FUEL LEAK.`;
+    verdict.style.background = "rgba(255,90,90,0.15)";
+    verdict.style.color = "#ff6b6b";
+  } else if (diff >= LEAK_TOLERANCE_KG) {
+    verdict.textContent = `SUSPECT FUEL OVERREAD \u2014 FOB reading ~${diff.toFixed(0)} kg higher than FU accounts for. Refer to QRH FUEL OVERREAD.`;
+    verdict.style.background = "rgba(255,179,0,0.15)";
+    verdict.style.color = "var(--amber)";
+  } else {
+    verdict.textContent = "No anomaly \u2014 within normal fuel system indication accuracy.";
+    verdict.style.background = "rgba(61,220,132,0.15)";
+    verdict.style.color = "var(--green)";
+  }
+}
+
+["fob1", "fu1", "time1", "fob2", "fu2", "time2"].forEach((id) => {
+  $(id).addEventListener("input", renderLeak);
+});
+renderLeak();
 </script>
 </body>
 </html>
