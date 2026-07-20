@@ -39,6 +39,20 @@
   }
   header .sub { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 
+  /* ---------------- TABS ---------------- */
+  .tabbar {
+    display: flex; margin-top: 16px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 4px; gap: 4px;
+  }
+  .tabbtn {
+    flex: 1; text-align: center; padding: 10px 6px; border-radius: 9px; cursor: pointer;
+    font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0.02em;
+    border: none; background: transparent; font-family: inherit;
+  }
+  .tabbtn.active { background: var(--panel2); color: var(--amber); }
+  .tabpanel { display: none; }
+  .tabpanel.active { display: block; }
+
   /* ---------------- DIAL ---------------- */
   .dial-wrap { position: relative; margin: 14px auto 6px; width: 280px; height: 280px; }
   .dial-readout {
@@ -77,6 +91,11 @@
   .row input:focus { outline: none; border-color: var(--amber); }
   .row .unit { font-family: var(--mono); font-size: 12px; color: var(--muted); width: 34px; }
 
+  .echo {
+    font-family: var(--mono); font-size: 10.5px; color: var(--muted); text-align: right;
+    margin: -6px 0 8px; padding-right: 44px;
+  }
+
   .result-line {
     display: flex; justify-content: space-between; align-items: baseline;
     padding-top: 10px; margin-top: 8px; border-top: 1px dashed var(--line);
@@ -111,114 +130,129 @@
   <header>
     <div class="eyebrow">A330 &middot; Rule of Thumb</div>
     <h1>Whiz Wheel</h1>
-    <div class="sub">595 &minus; Gross Weight (t) = Max Flight Level</div>
   </header>
 
-  <div class="dial-wrap">
-    <svg id="dial" viewBox="0 0 280 280" width="280" height="280"></svg>
-    <div class="dial-readout">
-      <div class="fl" id="dialFL">FL370</div>
-      <div class="fl-label">MAX ALTITUDE NOW</div>
-      <div class="wt" id="dialWt">225.0 t GW</div>
+  <div class="tabbar">
+    <button class="tabbtn active" id="tabBtnLeak" onclick="switchTab('leak')">Fuel Leak Check</button>
+    <button class="tabbtn" id="tabBtnAlt" onclick="switchTab('alt')">Altitude Calculator</button>
+  </div>
+
+  <!-- ================= TAB: FUEL LEAK ================= -->
+  <div class="tabpanel active" id="tabLeak">
+    <div class="card" id="leakCard">
+      <h2>Fuel Leak Check <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">&mdash; "the Dave Technique"</span></h2>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
+        Per FCOM [QRH] FUEL LEAK / FCTM: FOB + FU should stay constant over time.
+        Take two readings &ge;30 min apart (or at the next waypoint) and compare.
+        Enter fuel as <b>55.2</b> (=55,200kg) or the full <b>55200</b> &mdash; either format works.
+      </div>
+
+      <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin-bottom:4px;">READING 1</div>
+      <div class="row">
+        <label for="fob1">FOB</label>
+        <input type="number" id="fob1" placeholder="55.2" inputmode="decimal">
+        <span class="unit">kg</span>
+      </div>
+      <div class="row">
+        <label for="fu1">FU (Fuel Used)</label>
+        <input type="number" id="fu1" placeholder="7.1" inputmode="decimal">
+        <span class="unit">kg</span>
+      </div>
+      <div class="echo" id="echo1">&nbsp;</div>
+      <div class="row">
+        <label for="time1">Time</label>
+        <input type="time" id="time1" step="60">
+        <span class="unit">UTC</span>
+      </div>
+
+      <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin:12px 0 4px;">READING 2</div>
+      <div class="row">
+        <label for="fob2">FOB</label>
+        <input type="number" id="fob2" placeholder="49" inputmode="decimal">
+        <span class="unit">kg</span>
+      </div>
+      <div class="row">
+        <label for="fu2">FU (Fuel Used)</label>
+        <input type="number" id="fu2" placeholder="8.6" inputmode="decimal">
+        <span class="unit">kg</span>
+      </div>
+      <div class="echo" id="echo2">&nbsp;</div>
+      <div class="row">
+        <label for="time2">Time</label>
+        <input type="time" id="time2" step="60">
+        <span class="unit">UTC</span>
+      </div>
+
+      <div class="result-line">
+        <span class="label" id="leakLabel">Discrepancy [(FOB2+FU2) &minus; (FOB1+FU1)]</span>
+        <span class="value" id="leakValue">&mdash;</span>
+      </div>
+      <div class="result-line">
+        <span class="label">Interval</span>
+        <span class="value" id="leakInterval">&mdash;</span>
+      </div>
+      <div id="leakVerdict" style="margin-top:10px; padding:10px 12px; border-radius:8px; font-size:13px; font-weight:600; text-align:center;">&mdash;</div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>Current State</h2>
-    <div class="row">
-      <label for="gw">Gross Weight</label>
-      <input type="number" id="gw" value="225.0" step="0.5" inputmode="decimal">
-      <span class="unit">1000kg</span>
-    </div>
-    <div class="row">
-      <label for="burn">Fuel Burn Rate</label>
-      <input type="number" id="burn" value="5.5" step="0.1" inputmode="decimal">
-      <span class="unit">t/hr</span>
-    </div>
-    <div class="row">
-      <label for="utc">Current Time</label>
-      <input type="time" id="utc" step="60">
-      <span class="unit">UTC</span>
-    </div>
-  </div>
+  <!-- ================= TAB: ALTITUDE ================= -->
+  <div class="tabpanel" id="tabAlt">
+    <div class="sub" style="text-align:center; margin-bottom:6px;">595 &minus; Gross Weight (t) = Max Flight Level</div>
 
-  <div class="card">
-    <h2>Time to Requested Level</h2>
-    <div class="row">
-      <label for="target">ATC Requests</label>
-      <input type="number" id="target" value="390" step="10" inputmode="numeric">
-      <span class="unit">FL</span>
-    </div>
-    <div class="result-line">
-      <span class="label" id="resultLabel">Weight to burn</span>
-      <span class="value" id="resultValue">&mdash;</span>
-    </div>
-    <div class="result-line">
-      <span class="label">Accept at</span>
-      <span class="value" id="etaValue">&mdash;</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Quick Reference</h2>
-    <table>
-      <thead>
-        <tr><th>FL</th><th>Req. GW</th><th>ETA UTC</th></tr>
-      </thead>
-      <tbody id="refTable"></tbody>
-    </table>
-  </div>
-
-  <div class="card" id="leakCard">
-    <h2>Fuel Leak Check <span style="color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0;">&mdash; "the Dave Technique"</span></h2>
-    <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
-      Per FCOM [QRH] FUEL LEAK / FCTM: FOB + FU should stay constant over time.
-      Take two readings &ge;30 min apart (or at the next waypoint) and compare.
+    <div class="dial-wrap">
+      <svg id="dial" viewBox="0 0 280 280" width="280" height="280"></svg>
+      <div class="dial-readout">
+        <div class="fl" id="dialFL">FL370</div>
+        <div class="fl-label">MAX ALTITUDE NOW</div>
+        <div class="wt" id="dialWt">225.0 t GW</div>
+      </div>
     </div>
 
-    <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin-bottom:4px;">READING 1</div>
-    <div class="row">
-      <label for="fob1">FOB</label>
-      <input type="number" id="fob1" placeholder="18400" inputmode="numeric">
-      <span class="unit">kg</span>
-    </div>
-    <div class="row">
-      <label for="fu1">FU (Fuel Used)</label>
-      <input type="number" id="fu1" placeholder="4200" inputmode="numeric">
-      <span class="unit">kg</span>
-    </div>
-    <div class="row">
-      <label for="time1">Time</label>
-      <input type="time" id="time1" step="60">
-      <span class="unit">UTC</span>
-    </div>
-
-    <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin:12px 0 4px;">READING 2</div>
-    <div class="row">
-      <label for="fob2">FOB</label>
-      <input type="number" id="fob2" placeholder="17800" inputmode="numeric">
-      <span class="unit">kg</span>
-    </div>
-    <div class="row">
-      <label for="fu2">FU (Fuel Used)</label>
-      <input type="number" id="fu2" placeholder="4500" inputmode="numeric">
-      <span class="unit">kg</span>
-    </div>
-    <div class="row">
-      <label for="time2">Time</label>
-      <input type="time" id="time2" step="60">
-      <span class="unit">UTC</span>
+    <div class="card">
+      <h2>Current State</h2>
+      <div class="row">
+        <label for="gw">Gross Weight</label>
+        <input type="number" id="gw" value="225.0" step="0.5" inputmode="decimal">
+        <span class="unit">1000kg</span>
+      </div>
+      <div class="row">
+        <label for="burn">Fuel Burn Rate</label>
+        <input type="number" id="burn" value="5.5" step="0.1" inputmode="decimal">
+        <span class="unit">t/hr</span>
+      </div>
+      <div class="row">
+        <label for="utc">Current Time</label>
+        <input type="time" id="utc" step="60">
+        <span class="unit">UTC</span>
+      </div>
     </div>
 
-    <div class="result-line">
-      <span class="label" id="leakLabel">Discrepancy [(FOB2+FU2) &minus; (FOB1+FU1)]</span>
-      <span class="value" id="leakValue">&mdash;</span>
+    <div class="card">
+      <h2>Time to Requested Level</h2>
+      <div class="row">
+        <label for="target">ATC Requests</label>
+        <input type="number" id="target" value="390" step="10" inputmode="numeric">
+        <span class="unit">FL</span>
+      </div>
+      <div class="result-line">
+        <span class="label" id="resultLabel">Weight to burn</span>
+        <span class="value" id="resultValue">&mdash;</span>
+      </div>
+      <div class="result-line">
+        <span class="label">Accept at</span>
+        <span class="value" id="etaValue">&mdash;</span>
+      </div>
     </div>
-    <div class="result-line">
-      <span class="label">Interval</span>
-      <span class="value" id="leakInterval">&mdash;</span>
+
+    <div class="card">
+      <h2>Quick Reference</h2>
+      <table>
+        <thead>
+          <tr><th>FL</th><th>Req. GW</th><th>ETA UTC</th></tr>
+        </thead>
+        <tbody id="refTable"></tbody>
+      </table>
     </div>
-    <div id="leakVerdict" style="margin-top:10px; padding:10px 12px; border-radius:8px; font-size:13px; font-weight:600; text-align:center;">&mdash;</div>
   </div>
 
   <footer>
@@ -230,6 +264,14 @@
 <script>
 const $ = (id) => document.getElementById(id);
 
+// ---------------- TABS ----------------
+function switchTab(name) {
+  $("tabLeak").classList.toggle("active", name === "leak");
+  $("tabAlt").classList.toggle("active", name === "alt");
+  $("tabBtnLeak").classList.toggle("active", name === "leak");
+  $("tabBtnAlt").classList.toggle("active", name === "alt");
+}
+
 function nowUTCString() {
   const d = new Date();
   const h = String(d.getUTCHours()).padStart(2, "0");
@@ -237,6 +279,17 @@ function nowUTCString() {
   return `${h}:${m}`;
 }
 $("utc").value = nowUTCString();
+
+// Fuel entry format helper: pilots commonly type "55.2" to mean 55,200kg.
+// Anything under 1000 is treated as thousands-shorthand; 1000+ is treated as literal kg
+// (no realistic A330 FOB/FU value is below 1000kg in literal-kg terms).
+function normalizeFuel(v) {
+  if (isNaN(v)) return v;
+  return v < 1000 ? v * 1000 : v;
+}
+function formatKg(v) {
+  return Math.round(v).toLocaleString() + " kg";
+}
 
 function maxFL(weightT) {
   return 595 - weightT;
@@ -400,13 +453,44 @@ function severityClass(absDiff) {
   return "warn";
 }
 
+// Auto-populate time when FOB/FU is entered, but stop overwriting once the
+// pilot has manually touched the time field themselves.
+let time1Touched = false;
+let time2Touched = false;
+$("time1").addEventListener("input", () => { time1Touched = true; });
+$("time2").addEventListener("input", () => { time2Touched = true; });
+
+["fob1", "fu1"].forEach((id) => {
+  $(id).addEventListener("input", () => {
+    if (!time1Touched) $("time1").value = nowUTCString();
+    renderLeak();
+  });
+});
+["fob2", "fu2"].forEach((id) => {
+  $(id).addEventListener("input", () => {
+    if (!time2Touched) $("time2").value = nowUTCString();
+    renderLeak();
+  });
+});
+
 function renderLeak() {
-  const fob1 = parseFloat($("fob1").value);
-  const fu1 = parseFloat($("fu1").value);
-  const fob2 = parseFloat($("fob2").value);
-  const fu2 = parseFloat($("fu2").value);
+  const fob1raw = parseFloat($("fob1").value);
+  const fu1raw = parseFloat($("fu1").value);
+  const fob2raw = parseFloat($("fob2").value);
+  const fu2raw = parseFloat($("fu2").value);
   const t1 = $("time1").value;
   const t2 = $("time2").value;
+
+  const fob1 = normalizeFuel(fob1raw);
+  const fu1 = normalizeFuel(fu1raw);
+  const fob2 = normalizeFuel(fob2raw);
+  const fu2 = normalizeFuel(fu2raw);
+
+  // echo the interpreted values so the pilot can confirm the format was read correctly
+  $("echo1").textContent = (!isNaN(fob1) || !isNaN(fu1))
+    ? `= ${isNaN(fob1) ? "\u2014" : formatKg(fob1)} / ${isNaN(fu1) ? "\u2014" : formatKg(fu1)}` : "\u00a0";
+  $("echo2").textContent = (!isNaN(fob2) || !isNaN(fu2))
+    ? `= ${isNaN(fob2) ? "\u2014" : formatKg(fob2)} / ${isNaN(fu2) ? "\u2014" : formatKg(fu2)}` : "\u00a0";
 
   if ([fob1, fu1, fob2, fu2].some((v) => isNaN(v)) || !t1 || !t2) {
     $("leakValue").textContent = "\u2014";
@@ -455,9 +539,7 @@ function renderLeak() {
   }
 }
 
-["fob1", "fu1", "time1", "fob2", "fu2", "time2"].forEach((id) => {
-  $(id).addEventListener("input", renderLeak);
-});
+["time1", "time2"].forEach((id) => $(id).addEventListener("input", renderLeak));
 renderLeak();
 </script>
 </body>
