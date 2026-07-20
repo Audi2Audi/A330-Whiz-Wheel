@@ -1,0 +1,7 @@
+{
+  "appId": "com.audi2audi.whizwheel",
+  "appName": "A330 Whiz Wheel",
+  "webDir": "www",
+  "android": { "allowMixedContent": false },
+  "server": { "androidScheme": "https" }
+}

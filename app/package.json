@@ -1,0 +1,17 @@
+{
+  "name": "a330-whizwheel-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A330 Whiz Wheel - Capacitor Android wrapper",
+  "scripts": {
+    "sync-www": "rm -rf www && mkdir www && cp ../index.html www/",
+    "apk": "npm run sync-www && npx cap sync android && cd android && ./gradlew --no-daemon assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}
