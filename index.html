@@ -865,7 +865,7 @@ function ricPointLabel(p) {
 }
 
 function ricAddPoint() {
-  ricPoints.push({ type: "wpt", name: "", latDeg: "", latMin: "0", lonDeg: "" });
+  ricPoints.push({ type: ricPoints.length === 0 ? "wpt" : "ll", name: "", latDeg: "", latMin: "0", lonDeg: "" });
   ricRenderPoints();
 }
 
