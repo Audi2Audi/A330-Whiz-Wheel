@@ -11,6 +11,13 @@ if [ ! -d android ]; then
   echo "==> Creating Android project..."
   npx cap add android
 fi
+echo "==> Installing Whiz Wheel app icon..."
+for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+  cp icon-assets/mipmap-$d/*.png android/app/src/main/res/mipmap-$d/
+done
+mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+cp icon-assets/mipmap-anydpi-v26/*.xml android/app/src/main/res/mipmap-anydpi-v26/
+cp icon-assets/values/ic_launcher_background.xml android/app/src/main/res/values/ic_launcher_background.xml
 echo "==> Syncing..."
 npx cap sync android
 echo "==> Building debug APK (clean build)..."
