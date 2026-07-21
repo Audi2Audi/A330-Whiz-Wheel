@@ -438,9 +438,9 @@
     </div>
   </div>
 
-  <footer>
+  <footer id="appFooter">
     <span class="rule">Rule-of-thumb estimate only.</span><br>
-    Always confirm against FCOM/FCTM performance data and current OFP figures before accepting an ATC altitude assignment.
+    <span id="footerText">Always confirm against FCOM/FCTM performance data and current OFP figures before accepting an ATC altitude assignment.</span>
   </footer>
 </div>
 
@@ -452,6 +452,14 @@
 const $ = (id) => document.getElementById(id);
 
 // ---------------- TABS ----------------
+const FOOTER_TEXT = {
+  leak: "Cross-check with the ECAM FUEL SD page. If a leak is suspected, refer to the QRH FUEL LEAK procedure — do not troubleshoot from this tool alone.",
+  alt: "Always confirm against FCOM/FCTM performance data and current OFP figures before accepting an ATC altitude assignment.",
+  wind: "Limit values per FCOM Limitations / QRH — verify against current documents. Reported winds are magnetic from tower, true from ATIS/METAR.",
+  appr: "Reference: QRH ABN-23.03F (Unreliable Speed Indication). Confirm against the current QRH before relying on these figures.",
+  ric: "Verify FMS/FMGS tracks and distances against the OFP or Jeppesen Airway Manual General section tables per FOM 9.1.5. This tool supplements — not replaces — the published sources.",
+};
+
 function switchTab(name) {
   $("tabLeak").classList.toggle("active", name === "leak");
   $("tabAlt").classList.toggle("active", name === "alt");
@@ -463,6 +471,7 @@ function switchTab(name) {
   $("tabBtnWind").classList.toggle("active", name === "wind");
   $("tabBtnAppr").classList.toggle("active", name === "appr");
   $("tabBtnRic").classList.toggle("active", name === "ric");
+  $("footerText").textContent = FOOTER_TEXT[name] || FOOTER_TEXT.alt;
 }
 
 function nowUTCString() {
@@ -971,6 +980,9 @@ function ricComputeLegs() {
 // seed with two empty points so the tab isn't blank
 ricAddPoint();
 ricAddPoint();
+
+// set the footer for the default (Fuel Leak) tab
+$("footerText").textContent = FOOTER_TEXT.leak;
 
 </script>
 </body>
