@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>A330 Whiz Wheel</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0a0d10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root {
     --bg: #0a0d10;
@@ -28,6 +33,15 @@
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   .wrap { max-width: 480px; margin: 0 auto; padding: 18px 16px 40px; }
+
+  /* Tablet / iPad layout: widen the column and give inputs more room */
+  @media (min-width: 768px) {
+    .wrap { max-width: 700px; padding: 28px 24px 48px; }
+    .row input { width: 150px; font-size: 19px; }
+    .ric-table th, .ric-table td { font-size: 16px; padding: 8px 6px; }
+    .result-line .value { font-size: 23px; }
+    header h1 { font-size: 26px; }
+  }
 
   header { text-align: center; margin-bottom: 6px; }
   header .eyebrow {
@@ -983,6 +997,14 @@ ricAddPoint();
 
 // set the footer for the default (Fuel Leak) tab
 $("footerText").textContent = FOOTER_TEXT.leak;
+
+// ---------------- OFFLINE (PWA) ----------------
+// Register only when served over real https (GitHub Pages) — never inside the
+// Capacitor Android app, which serves from its own local scheme and needs no SW.
+if ("serviceWorker" in navigator && location.protocol === "https:" &&
+    !location.hostname.includes("localhost")) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
 
 </script>
 </body>
