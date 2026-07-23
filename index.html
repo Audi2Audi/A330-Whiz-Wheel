@@ -248,7 +248,7 @@
       <div class="echo" id="echo1">&nbsp;</div>
       <div class="row">
         <label for="time1">Time</label>
-        <input type="time" id="time1" step="60">
+        <input type="text" id="time1" inputmode="numeric" maxlength="4" placeholder="2000">
         <span class="unit">UTC</span>
       </div>
 
@@ -266,7 +266,7 @@
       <div class="echo" id="echo2">&nbsp;</div>
       <div class="row">
         <label for="time2">Time</label>
-        <input type="time" id="time2" step="60">
+        <input type="text" id="time2" inputmode="numeric" maxlength="4" placeholder="2000">
         <span class="unit">UTC</span>
       </div>
 
@@ -309,7 +309,7 @@
       </div>
       <div class="row">
         <label for="utc">Current Time</label>
-        <input type="time" id="utc" step="60">
+        <input type="text" id="utc" inputmode="numeric" maxlength="4" placeholder="2000">
         <span class="unit">UTC</span>
       </div>
     </div>
@@ -492,7 +492,7 @@ function nowUTCString() {
   const d = new Date();
   const h = String(d.getUTCHours()).padStart(2, "0");
   const m = String(d.getUTCMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
+  return h + m;  // 4-digit Zulu, e.g. "2005"
 }
 $("utc").value = nowUTCString();
 
@@ -514,7 +514,17 @@ function requiredWeightT(fl) {
   return 595 - fl;
 }
 function parseUTC(str) {
-  const [h, m] = str.split(":").map(Number);
+  str = (str || "").trim();
+  if (str.includes(":")) {
+    const [h, m] = str.split(":").map(Number);
+    return h * 60 + (m || 0);
+  }
+  const raw = str.replace(/\D/g, "");
+  if (!raw) return NaN;
+  const digits = raw.padStart(4, "0");
+  const h = parseInt(digits.slice(0, 2), 10);
+  const m = parseInt(digits.slice(2, 4), 10);
+  if (isNaN(h) || isNaN(m) || h > 23 || m > 59) return NaN;
   return h * 60 + m; // minutes since 0000Z
 }
 function formatUTCFromMinutes(totalMin) {
@@ -605,7 +615,8 @@ function render() {
   const gw = parseFloat($("gw").value) || 0;
   const burn = parseFloat($("burn").value) || 0.001;
   const target = parseFloat($("target").value) || 0;
-  const utcMin = parseUTC($("utc").value || "00:00");
+  let utcMin = parseUTC($("utc").value || "0000");
+  if (isNaN(utcMin)) utcMin = 0;
 
   const curMaxFL = Math.round(maxFL(gw) / 10) * 10;
   $("dialFL").textContent = "FL" + curMaxFL;
@@ -726,6 +737,16 @@ function renderLeak() {
 
   let t1min = parseUTC(t1);
   let t2min = parseUTC(t2);
+  if (isNaN(t1min) || isNaN(t2min)) {
+    $("leakValue").textContent = "\u2014";
+    $("leakValue").className = "value";
+    $("leakInterval").textContent = "\u2014";
+    $("leakInterval").className = "value";
+    $("leakVerdict").textContent = "Enter times as 4-digit Zulu (e.g. 2005).";
+    $("leakVerdict").style.background = "var(--panel2)";
+    $("leakVerdict").style.color = "var(--muted)";
+    return;
+  }
   let elapsed = t2min - t1min;
   if (elapsed < 0) elapsed += 1440; // crossed midnight Z
   const elapsedHrs = elapsed / 60;
