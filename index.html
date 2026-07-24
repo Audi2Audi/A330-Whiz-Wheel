@@ -472,6 +472,7 @@
         <button id="brkMode3" class="active" onclick="brkSetMode(3)">3 Pilots<br>&times;3 breaks</button>
         <button id="brkMode2" onclick="brkSetMode(2)">4 Pilots<br>&times;2 breaks</button>
         <button id="brkModeS" onclick="brkSetMode('s')">4 Pilots<br>short-long-short</button>
+        <button id="brkModeQ" onclick="brkSetMode('q')">4 Pilots<br>&times;4 short</button>
       </div>
       <table class="ric-table" style="margin-top:12px;">
         <thead><tr><th>Break</th><th>Start</th><th>End</th><th>Length</th></tr></thead>
@@ -1105,6 +1106,7 @@ function brkSetMode(m) {
   $("brkMode3").classList.toggle("active", m === 3);
   $("brkMode2").classList.toggle("active", m === 2);
   $("brkModeS").classList.toggle("active", m === "s");
+  $("brkModeQ").classList.toggle("active", m === "q");
   renderBreaks();
 }
 
@@ -1138,12 +1140,21 @@ function renderBreaks() {
       { label: "Break 1 \u2014 Pair A", from: 0, to: d },
       { label: "Break 2 \u2014 Pair B", from: d, to: total },
     ];
-  } else {
+  } else if (brkMode === "s") {
     const q = total / 4;
     segs = [
       { label: "Break 1 \u2014 Pair A (short)", from: 0, to: q },
       { label: "Break 2 \u2014 Pair B (long)", from: q, to: 3*q },
       { label: "Break 3 \u2014 Pair A (short)", from: 3*q, to: total },
+    ];
+  } else {
+    // Four equal quarters, pairs alternating: each pair takes two separate rests
+    const q = total / 4;
+    segs = [
+      { label: "Break 1 \u2014 Pair A", from: 0, to: q },
+      { label: "Break 2 \u2014 Pair B", from: q, to: 2*q },
+      { label: "Break 3 \u2014 Pair A", from: 2*q, to: 3*q },
+      { label: "Break 4 \u2014 Pair B", from: 3*q, to: total },
     ];
   }
 
@@ -1157,7 +1168,10 @@ function renderBreaks() {
       "<td>" + fmtDur(to - from) + "</td>";
     tbody.appendChild(tr);
   }
-  $("brkTotal").textContent = "Total rest window: " + fmtDur(total);
+  let summary = "Total rest window: " + fmtDur(total);
+  if (brkMode === "q") summary += "  \u2022  each pair: 2 \u00d7 " + fmtDur(total / 4) + " = " + fmtDur(total / 2);
+  else if (brkMode === "s") summary += "  \u2022  Pair A: 2 \u00d7 " + fmtDur(total / 4) + " = " + fmtDur(total / 2) + ", Pair B: " + fmtDur(total / 2);
+  $("brkTotal").textContent = summary;
 }
 
 ["brkStart", "brkEnd"].forEach((id) => $(id).addEventListener("input", renderBreaks));
