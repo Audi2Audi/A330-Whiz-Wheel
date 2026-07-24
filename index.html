@@ -217,11 +217,12 @@
   </header>
 
   <div class="tabbar">
-    <button class="tabbtn active" id="tabBtnLeak" onclick="switchTab('leak')">Fuel Leak</button>
+    <button class="tabbtn active" id="tabBtnLeak" onclick="switchTab('leak')">Fuel</button>
     <button class="tabbtn" id="tabBtnAlt" onclick="switchTab('alt')">Altitude</button>
     <button class="tabbtn" id="tabBtnWind" onclick="switchTab('wind')">Wind</button>
     <button class="tabbtn" id="tabBtnAppr" onclick="switchTab('appr')">Appr</button>
     <button class="tabbtn" id="tabBtnRic" onclick="switchTab('ric')">RIC</button>
+    <button class="tabbtn" id="tabBtnBrk" onclick="switchTab('brk')">Break</button>
   </div>
 
   <!-- ================= TAB: FUEL LEAK ================= -->
@@ -452,6 +453,33 @@
     </div>
   </div>
 
+  <!-- ================= TAB: BREAK ================= -->
+  <div class="tabpanel" id="tabBrk">
+    <div class="card">
+      <h2>Crew Break Calculator</h2>
+      <div class="row">
+        <label for="brkStart">Rest Start</label>
+        <input type="text" id="brkStart" inputmode="numeric" maxlength="4" placeholder="0230">
+        <span class="unit">UTC</span>
+      </div>
+      <div class="row">
+        <label for="brkEnd">Rest End</label>
+        <input type="text" id="brkEnd" inputmode="numeric" maxlength="4" placeholder="0830">
+        <span class="unit">UTC</span>
+      </div>
+      <div class="ric-type-toggle" style="margin-top:10px;">
+        <button id="brkMode3" class="active" onclick="brkSetMode(3)">3 Pilots<br>&times;3 breaks</button>
+        <button id="brkMode2" onclick="brkSetMode(2)">4 Pilots<br>&times;2 breaks</button>
+        <button id="brkModeS" onclick="brkSetMode('s')">4 Pilots<br>short-long-short</button>
+      </div>
+      <table class="ric-table" style="margin-top:12px;">
+        <thead><tr><th>Break</th><th>Start</th><th>End</th><th>Length</th></tr></thead>
+        <tbody id="brkRows"></tbody>
+      </table>
+      <div id="brkTotal" style="font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:8px; text-align:right;"></div>
+    </div>
+  </div>
+
   <footer id="appFooter">
     <span class="rule">Rule-of-thumb estimate only.</span><br>
     <span id="footerText">Always confirm against FCOM/FCTM performance data and current OFP figures before accepting an ATC altitude assignment.</span>
@@ -472,6 +500,7 @@ const FOOTER_TEXT = {
   wind: "Limit values per FCOM Limitations / QRH — verify against current documents. Reported winds are magnetic from tower, true from ATIS/METAR.",
   appr: "Reference: QRH ABN-23.03F (Unreliable Speed Indication). Confirm against the current QRH before relying on these figures.",
   ric: "Verify FMS/FMGS tracks and distances against the OFP or Jeppesen Airway Manual General section tables per FOM 9.1.5. This tool supplements — not replaces — the published sources.",
+  brk: "Break times are simple even divisions of the entered rest window. Confirm controlled-rest and augmented-crew requirements per FOM and the Collective Agreement.",
 };
 
 function switchTab(name) {
@@ -480,11 +509,13 @@ function switchTab(name) {
   $("tabWind").classList.toggle("active", name === "wind");
   $("tabAppr").classList.toggle("active", name === "appr");
   $("tabRic").classList.toggle("active", name === "ric");
+  $("tabBrk").classList.toggle("active", name === "brk");
   $("tabBtnLeak").classList.toggle("active", name === "leak");
   $("tabBtnAlt").classList.toggle("active", name === "alt");
   $("tabBtnWind").classList.toggle("active", name === "wind");
   $("tabBtnAppr").classList.toggle("active", name === "appr");
   $("tabBtnRic").classList.toggle("active", name === "ric");
+  $("tabBtnBrk").classList.toggle("active", name === "brk");
   $("footerText").textContent = FOOTER_TEXT[name] || FOOTER_TEXT.alt;
 }
 
@@ -1015,6 +1046,73 @@ function ricComputeLegs() {
 // seed with two empty points so the tab isn't blank
 ricAddPoint();
 ricAddPoint();
+
+
+// ---------------- CREW BREAK CALCULATOR ----------------
+let brkMode = 3;
+
+function brkSetMode(m) {
+  brkMode = m;
+  $("brkMode3").classList.toggle("active", m === 3);
+  $("brkMode2").classList.toggle("active", m === 2);
+  $("brkModeS").classList.toggle("active", m === "s");
+  renderBreaks();
+}
+
+function fmtDur(mins) {
+  const h = Math.floor(mins / 60), m = Math.round(mins % 60);
+  return h + ":" + String(m).padStart(2, "0");
+}
+
+function renderBreaks() {
+  const tbody = $("brkRows");
+  tbody.innerHTML = "";
+  $("brkTotal").textContent = "";
+  const t1 = parseUTC($("brkStart").value);
+  const t2 = parseUTC($("brkEnd").value);
+  if (isNaN(t1) || isNaN(t2)) return;
+  let total = t2 - t1;
+  if (total <= 0) total += 1440; // crossed midnight Z
+
+  // Build the break windows per mode
+  let segs = [];
+  if (brkMode === 3) {
+    const d = total / 3;
+    segs = [
+      { label: "Break 1 \u2014 Pilot A", from: 0, to: d },
+      { label: "Break 2 \u2014 Pilot B", from: d, to: 2*d },
+      { label: "Break 3 \u2014 Pilot C", from: 2*d, to: total },
+    ];
+  } else if (brkMode === 2) {
+    const d = total / 2;
+    segs = [
+      { label: "Break 1 \u2014 Pair A", from: 0, to: d },
+      { label: "Break 2 \u2014 Pair B", from: d, to: total },
+    ];
+  } else {
+    const q = total / 4;
+    segs = [
+      { label: "Break 1 \u2014 Pair A (short)", from: 0, to: q },
+      { label: "Break 2 \u2014 Pair B (long)", from: q, to: 3*q },
+      { label: "Break 3 \u2014 Pair A (short)", from: 3*q, to: total },
+    ];
+  }
+
+  for (const s of segs) {
+    // round boundaries to whole minutes for display
+    const from = Math.round(t1 + s.from), to = Math.round(t1 + s.to);
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + s.label + "</td>" +
+      "<td>" + formatUTCFromMinutes(from) + "</td>" +
+      "<td>" + formatUTCFromMinutes(to) + "</td>" +
+      "<td>" + fmtDur(to - from) + "</td>";
+    tbody.appendChild(tr);
+  }
+  $("brkTotal").textContent = "Total rest window: " + fmtDur(total);
+}
+
+["brkStart", "brkEnd"].forEach((id) => $(id).addEventListener("input", renderBreaks));
+renderBreaks();
 
 // set the footer for the default (Fuel Leak) tab
 $("footerText").textContent = FOOTER_TEXT.leak;
