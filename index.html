@@ -217,16 +217,17 @@
   </header>
 
   <div class="tabbar">
-    <button class="tabbtn active" id="tabBtnLeak" onclick="switchTab('leak')">Fuel</button>
-    <button class="tabbtn" id="tabBtnAlt" onclick="switchTab('alt')">Altitude</button>
+    <button class="tabbtn active" id="tabBtnBrk" onclick="switchTab('brk')">Breaks</button>
+    <button class="tabbtn" id="tabBtnDuty" onclick="switchTab('duty')">Duty</button>
+    <button class="tabbtn" id="tabBtnLeak" onclick="switchTab('leak')">Fuel</button>
+    <button class="tabbtn" id="tabBtnAlt" onclick="switchTab('alt')">Alt</button>
     <button class="tabbtn" id="tabBtnWind" onclick="switchTab('wind')">Wind</button>
     <button class="tabbtn" id="tabBtnAppr" onclick="switchTab('appr')">Appr</button>
     <button class="tabbtn" id="tabBtnRic" onclick="switchTab('ric')">RIC</button>
-    <button class="tabbtn" id="tabBtnBrk" onclick="switchTab('brk')">Breaks</button>
   </div>
 
   <!-- ================= TAB: FUEL LEAK ================= -->
-  <div class="tabpanel active" id="tabLeak">
+  <div class="tabpanel" id="tabLeak">
     <div class="card" id="leakCard">
       <h2>Fuel Leak Check</h2>
       <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
@@ -454,7 +455,7 @@
   </div>
 
   <!-- ================= TAB: BREAK ================= -->
-  <div class="tabpanel" id="tabBrk">
+  <div class="tabpanel active" id="tabBrk">
     <div class="card">
       <h2>Crew Break Calculator</h2>
       <div class="row">
@@ -479,10 +480,19 @@
       <div id="brkTotal" style="font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:8px; text-align:right;"></div>
     </div>
 
+  </div>
+
+  <!-- ================= TAB: DUTY ================= -->
+  <div class="tabpanel" id="tabDuty">
     <div class="card">
       <h2>Duty Day (Max FDP)</h2>
       <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
-        FOM 6.5.6.1 / 6.5.6.2. FDP start is <b>local time where acclimatized</b>. A330 rest facility is Class 2.
+        FOM 6.5.6.1 / 6.5.6.2 (CARs-based). FDP start is <b>local time where acclimatized</b>. A330 rest facility is Class 2.
+      </div>
+      <div style="font-size:10.5px; color:var(--amber); margin-bottom:10px; line-height:1.5;">
+        &#9888; Regulatory limit only. <b>Collective Agreement A25 Tables A&ndash;D are often more
+        restrictive and govern</b> &mdash; this figure is not the whole answer. Check A25 before
+        relying on it operationally.
       </div>
       <div class="row">
         <label for="fdpStart">FDP Start (local)</label>
@@ -537,6 +547,7 @@ const FOOTER_TEXT = {
   appr: "Reference: QRH ABN-23.03F (Unreliable Speed Indication). Confirm against the current QRH before relying on these figures.",
   ric: "Verify FMS/FMGS tracks and distances against the OFP or Jeppesen Airway Manual General section tables per FOM 9.1.5. This tool supplements — not replaces — the published sources.",
   brk: "Break times are simple even divisions of the entered rest window. Confirm controlled-rest and augmented-crew requirements per FOM and the Collective Agreement.",
+  duty: "CARs/FOM 6.5.6 limits only — Collective Agreement Tables A–D may be more restrictive and govern. Verify against A25 and confirm with Crew Scheduling or ALPA.",
 };
 
 function switchTab(name) {
@@ -546,12 +557,14 @@ function switchTab(name) {
   $("tabAppr").classList.toggle("active", name === "appr");
   $("tabRic").classList.toggle("active", name === "ric");
   $("tabBrk").classList.toggle("active", name === "brk");
+  $("tabDuty").classList.toggle("active", name === "duty");
   $("tabBtnLeak").classList.toggle("active", name === "leak");
   $("tabBtnAlt").classList.toggle("active", name === "alt");
   $("tabBtnWind").classList.toggle("active", name === "wind");
   $("tabBtnAppr").classList.toggle("active", name === "appr");
   $("tabBtnRic").classList.toggle("active", name === "ric");
   $("tabBtnBrk").classList.toggle("active", name === "brk");
+  $("tabBtnDuty").classList.toggle("active", name === "duty");
   $("footerText").textContent = FOOTER_TEXT[name] || FOOTER_TEXT.alt;
 }
 
@@ -1228,8 +1241,8 @@ function renderFdp() {
 ["fdpStart", "fdpSectors"].forEach((id) => $(id).addEventListener("input", renderFdp));
 renderFdp();
 
-// set the footer for the default (Fuel Leak) tab
-$("footerText").textContent = FOOTER_TEXT.leak;
+// set the footer for the default (Breaks) tab
+$("footerText").textContent = FOOTER_TEXT.brk;
 
 // ---------------- OFFLINE (PWA) ----------------
 // Register only when served over real https (GitHub Pages) — never inside the
