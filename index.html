@@ -222,7 +222,7 @@
     <button class="tabbtn" id="tabBtnWind" onclick="switchTab('wind')">Wind</button>
     <button class="tabbtn" id="tabBtnAppr" onclick="switchTab('appr')">Appr</button>
     <button class="tabbtn" id="tabBtnRic" onclick="switchTab('ric')">RIC</button>
-    <button class="tabbtn" id="tabBtnBrk" onclick="switchTab('brk')">Break</button>
+    <button class="tabbtn" id="tabBtnBrk" onclick="switchTab('brk')">Breaks</button>
   </div>
 
   <!-- ================= TAB: FUEL LEAK ================= -->
@@ -477,6 +477,42 @@
         <tbody id="brkRows"></tbody>
       </table>
       <div id="brkTotal" style="font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:8px; text-align:right;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Duty Day (Max FDP)</h2>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
+        FOM 6.5.6.1 / 6.5.6.2. FDP start is <b>local time where acclimatized</b>. A330 rest facility is Class 2.
+      </div>
+      <div class="row">
+        <label for="fdpStart">FDP Start (local)</label>
+        <input type="text" id="fdpStart" inputmode="numeric" maxlength="4" placeholder="0700">
+        <span class="unit">LT</span>
+      </div>
+      <div class="row">
+        <label for="fdpSectors">Planned Sectors</label>
+        <input type="number" id="fdpSectors" value="1" min="1" max="6" inputmode="numeric">
+        <span class="unit">&nbsp;</span>
+      </div>
+      <div class="ric-type-toggle" style="margin-top:10px;">
+        <button id="fdpCrew2" class="active" onclick="fdpSetCrew(2)">2 Pilots</button>
+        <button id="fdpCrew3" onclick="fdpSetCrew(3)">3 Pilots</button>
+        <button id="fdpCrew4" onclick="fdpSetCrew(4)">4 Pilots</button>
+      </div>
+      <div class="ric-type-toggle" id="fdpFacilityRow" style="display:none;">
+        <button id="fdpFac1" onclick="fdpSetFacility(1)">Class 1</button>
+        <button id="fdpFac2" class="active" onclick="fdpSetFacility(2)">Class 2 (A330)</button>
+        <button id="fdpFac3" onclick="fdpSetFacility(3)">Class 3</button>
+      </div>
+      <div class="result-line">
+        <span class="label">Maximum FDP</span>
+        <span class="value" id="fdpMax">&mdash;</span>
+      </div>
+      <div class="result-line">
+        <span class="label">FDP must end by</span>
+        <span class="value" id="fdpEnd">&mdash;</span>
+      </div>
+      <div id="fdpNote" style="font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.5;"></div>
     </div>
   </div>
 
@@ -1113,6 +1149,84 @@ function renderBreaks() {
 
 ["brkStart", "brkEnd"].forEach((id) => $(id).addEventListener("input", renderBreaks));
 renderBreaks();
+
+
+// ---------------- DUTY DAY (MAX FDP) ----------------
+// FOM 6.5.6.1 (non-augmented, by FDP start local time & planned sectors)
+// and 6.5.6.2 (augmented, by additional crew & rest facility class).
+let fdpCrew = 2;
+let fdpFacility = 2; // A330 default: Class 2
+
+function fdpSetCrew(n) {
+  fdpCrew = n;
+  $("fdpCrew2").classList.toggle("active", n === 2);
+  $("fdpCrew3").classList.toggle("active", n === 3);
+  $("fdpCrew4").classList.toggle("active", n === 4);
+  $("fdpFacilityRow").style.display = n === 2 ? "none" : "flex";
+  renderFdp();
+}
+function fdpSetFacility(c) {
+  fdpFacility = c;
+  $("fdpFac1").classList.toggle("active", c === 1);
+  $("fdpFac2").classList.toggle("active", c === 2);
+  $("fdpFac3").classList.toggle("active", c === 3);
+  renderFdp();
+}
+
+function fdpBasicMax(startMin, sectors) {
+  const h = startMin / 60;
+  const few = sectors <= 4; // "1 to 4" column vs "5 or 6"
+  if (h < 4)  return few ? 9    : 9;
+  if (h < 5)  return few ? 10   : 9;
+  if (h < 6)  return few ? 11   : 10;
+  if (h < 7)  return few ? 12   : 11;
+  if (h < 13) return few ? 13   : 12;
+  if (h < 17) return few ? 12.5 : 11.5;
+  if (h < 22) return few ? 12   : 11;
+  if (h < 23) return few ? 11   : 10;
+  return few ? 10 : 9;
+}
+
+function fdpAugmentedMax(crew, facility) {
+  if (crew === 3) return facility === 3 ? 14 : 15;        // Class 1 or 2: 15
+  if (facility === 3) return 15.25;                        // 4 pilots
+  return facility === 2 ? 16.5 : 18;                       // Class 2: 16.5, Class 1: 18
+}
+
+function renderFdp() {
+  const start = parseUTC($("fdpStart").value);
+  const sectors = Math.max(1, Math.min(6, parseInt($("fdpSectors").value) || 1));
+  const note = $("fdpNote");
+
+  if (isNaN(start)) {
+    $("fdpMax").textContent = "\u2014";
+    $("fdpEnd").textContent = "\u2014";
+    note.textContent = "";
+    return;
+  }
+
+  let maxH, noteText;
+  if (fdpCrew === 2) {
+    maxH = fdpBasicMax(start, sectors);
+    noteText = "Non-augmented (FOM 6.5.6.1), " + sectors + " sector" + (sectors > 1 ? "s" : "") + ".";
+  } else {
+    maxH = fdpAugmentedMax(fdpCrew, fdpFacility);
+    noteText = "Augmented, +" + (fdpCrew - 2) + " crew, Class " + fdpFacility + " rest (FOM 6.5.6.2). " +
+      (sectors >= 2
+        ? "In-flight rest: the pilot at the controls for the final landing requires 2 consecutive hours; others 90 consecutive minutes."
+        : "In-flight rest: distribute equally among all flight crew, as reasonable.");
+  }
+
+  const endMin = start + maxH * 60;
+  $("fdpMax").textContent = fmtDur(maxH * 60) + " hrs";
+  $("fdpMax").className = "value ok";
+  $("fdpEnd").textContent = formatUTCFromMinutes(endMin).replace("Z", " LT");
+  $("fdpEnd").className = "value " + (maxH * 60 + start >= 1440 ? "caution" : "ok");
+  note.textContent = noteText;
+}
+
+["fdpStart", "fdpSectors"].forEach((id) => $(id).addEventListener("input", renderFdp));
+renderFdp();
 
 // set the footer for the default (Fuel Leak) tab
 $("footerText").textContent = FOOTER_TEXT.leak;
