@@ -1,7 +1,9 @@
 // A330 Whiz Wheel service worker
-// Network-first with cache fallback: updates flow through whenever online,
-// and the app remains fully usable offline.
-const CACHE = "whizwheel-v1";
+// Cache-first with background refresh (stale-while-revalidate):
+// launch NEVER waits on the network — critical on restricted/captive
+// in-flight Wi-Fi where fetches hang rather than fail. Updates are
+// fetched in the background and apply on the next launch.
+const CACHE = "whizwheel-v2";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -19,12 +21,24 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    fetch(e.request)
-      .then((resp) => {
-        const copy = resp.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
-        return resp;
-      })
-      .catch(() => caches.match(e.request, { ignoreSearch: true }))
+    caches.match(e.request, { ignoreSearch: true }).then((cached) => {
+      // Background refresh — never blocks the response
+      const refresh = fetch(e.request)
+        .then((resp) => {
+          if (resp && resp.ok) {
+            const copy = resp.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
+          return resp;
+        })
+        .catch(() => cached);
+      // Serve cache instantly when available; fall back for navigations
+      if (cached) return cached;
+      if (e.request.mode === "navigate") {
+        return refresh.then((r) => r || caches.match("./index.html"))
+          .catch(() => caches.match("./index.html"));
+      }
+      return refresh;
+    })
   );
 });
