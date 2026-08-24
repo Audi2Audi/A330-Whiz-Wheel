@@ -224,6 +224,7 @@
     <button class="tabbtn" id="tabBtnWind" onclick="switchTab('wind')">Wind</button>
     <button class="tabbtn" id="tabBtnAppr" onclick="switchTab('appr')">Appr</button>
     <button class="tabbtn" id="tabBtnRic" onclick="switchTab('ric')">RIC</button>
+    <button class="tabbtn" id="tabBtnBrake" onclick="switchTab('brake')">Brk Cool</button>
   </div>
 
   <!-- ================= TAB: FUEL LEAK ================= -->
@@ -437,6 +438,45 @@
     </div>
   </div>
 
+  <!-- ================= TAB: BRAKE COOLING ================= -->
+  <div class="tabpanel" id="tabBrake">
+    <div class="card">
+      <h2>Brake Cooling Time &mdash; MEL 32-07-01-B</h2>
+      <div class="data-freshness">
+        MEL Rev 142 (11 MAR 26) ground brake cooling time tables.
+        <b>Enter brake energy (MJ) read from the MEL brake energy graph</b> &mdash; this tool does the table lookup, not the graph.
+      </div>
+      <div style="font-size:10.5px; color:var(--amber); margin-bottom:12px; line-height:1.5;">
+        &#9888; The energy value comes from the MEL brake energy nomogram (weight, speed, Zp, temp,
+        wind, slope, brake mode corrections) &mdash; read that off the actual MEL chart. This page only
+        automates the cooling-time table that follows it.
+      </div>
+      <div class="row">
+        <label for="brkEnergy">Brake Energy</label>
+        <input type="number" id="brkEnergy" inputmode="decimal" placeholder="78" min="0" max="120">
+        <span class="unit">MJ</span>
+      </div>
+      <div class="row">
+        <label for="brkOat">OAT</label>
+        <input type="number" id="brkOat" inputmode="numeric" placeholder="15" min="-60" max="60">
+        <span class="unit">&deg;C</span>
+      </div>
+      <div class="ric-type-toggle" style="margin-top:10px;">
+        <button id="brkTrYes" class="active" onclick="brkSetTr(true)">Max Reverser<br>ALL reversers</button>
+        <button id="brkTrNo" onclick="brkSetTr(false)">No / Partial<br>Reverser</button>
+      </div>
+      <div class="result-line">
+        <span class="label">Cooling time &mdash; NO fan</span>
+        <span class="value" id="brkNoFan">&mdash;</span>
+      </div>
+      <div class="result-line">
+        <span class="label">Cooling time &mdash; WITH fan</span>
+        <span class="value" id="brkWithFan">&mdash;</span>
+      </div>
+      <div id="brkLookupNote" style="font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.5;"></div>
+    </div>
+  </div>
+
   <!-- ================= TAB: RIC ================= -->
   <div class="tabpanel" id="tabRic">
     <div class="card">
@@ -548,6 +588,7 @@ const FOOTER_TEXT = {
   appr: "Reference: QRH ABN-23.03F (Unreliable Speed Indication). Confirm against the current QRH before relying on these figures.",
   ric: "Verify FMS/FMGS tracks and distances against the OFP or Jeppesen Airway Manual General section tables per FOM 9.1.5. This tool supplements — not replaces — the published sources.",
   brk: "Break times are simple even divisions of the entered rest window. Confirm controlled-rest and augmented-crew requirements per FOM and the Collective Agreement.",
+  brake: "MEL 32-07-01-B table lookup only. Read brake energy from the MEL nomogram; confirm the full procedure and any dispatch conditions in the MEL itself.",
   duty: "CARs/FOM 6.5.6 limits only — Collective Agreement Tables A–D may be more restrictive and govern. Verify against A25 and confirm with Crew Scheduling or ALPA.",
 };
 
@@ -557,6 +598,7 @@ function switchTab(name) {
   $("tabWind").classList.toggle("active", name === "wind");
   $("tabAppr").classList.toggle("active", name === "appr");
   $("tabRic").classList.toggle("active", name === "ric");
+  $("tabBrake").classList.toggle("active", name === "brake");
   $("tabBrk").classList.toggle("active", name === "brk");
   $("tabDuty").classList.toggle("active", name === "duty");
   $("tabBtnLeak").classList.toggle("active", name === "leak");
@@ -564,6 +606,7 @@ function switchTab(name) {
   $("tabBtnWind").classList.toggle("active", name === "wind");
   $("tabBtnAppr").classList.toggle("active", name === "appr");
   $("tabBtnRic").classList.toggle("active", name === "ric");
+  $("tabBtnBrake").classList.toggle("active", name === "brake");
   $("tabBtnBrk").classList.toggle("active", name === "brk");
   $("tabBtnDuty").classList.toggle("active", name === "duty");
   $("footerText").textContent = FOOTER_TEXT[name] || FOOTER_TEXT.alt;
@@ -1254,6 +1297,58 @@ function renderFdp() {
 
 ["fdpStart", "fdpSectors"].forEach((id) => $(id).addEventListener("input", renderFdp));
 renderFdp();
+
+const BRAKE_OAT=[-50,-40,-30,-20,-10,0,10,20,30,40,50,55];
+const BRAKE_ENERGY=[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115,120];
+const BRAKE_WITH_TR={0:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],5:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],10:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[3,1]],15:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[7,1],[14,3],[21,4],[28,6],[34,7],[37,8]],20:[[0,0],[6,1],[14,3],[21,4],[28,6],[34,7],[40,8],[46,9],[51,10],[56,12],[61,13],[64,13]],25:[[34,7],[40,8],[45,9],[51,10],[56,11],[61,13],[66,14],[71,14],[75,15],[79,16],[84,17],[86,18]],30:[[61,12],[66,13],[70,14],[75,15],[79,16],[83,17],[87,18],[91,19],[95,19],[99,20],[102,21],[104,21]],35:[[83,17],[87,18],[91,19],[95,19],[99,20],[102,21],[106,22],[109,22],[112,23],[115,24],[119,24],[120,25]],40:[[102,21],[105,22],[109,22],[112,23],[115,24],[118,24],[121,25],[124,26],[127,26],[130,27],[133,27],[134,28]],45:[[118,24],[121,25],[124,25],[127,26],[130,27],[133,27],[136,28],[138,28],[141,29],[143,29],[146,30],[147,30]],50:[[133,27],[135,28],[138,28],[141,29],[143,29],[146,30],[148,30],[150,31],[153,31],[155,32],[157,32],[159,32]],55:[[146,30],[148,30],[150,31],[153,31],[155,32],[157,32],[160,33],[162,33],[164,34],[166,34],[168,34],[169,35]],60:[[157,32],[159,33],[162,33],[164,34],[166,34],[168,34],[170,35],[172,35],[174,36],[176,36],[178,36],[179,37]],65:[[168,34],[170,35],[172,35],[174,36],[176,36],[178,36],[180,37],[181,37],[183,38],[185,38],[187,38],[188,38]],70:[[178,36],[179,37],[181,37],[183,38],[185,38],[187,38],[188,39],[190,39],[192,39],[194,40],[195,40],[196,40]],75:[[187,38],[188,39],[190,39],[192,39],[193,40],[195,40],[197,40],[198,41],[200,41],[202,41],[203,42],[204,42]],80:[[195,40],[197,40],[198,41],[200,41],[201,41],[203,42],[205,42],[206,42],[208,43],[209,43],[210,43],[211,43]],85:[[203,42],[204,42],[206,42],[207,43],[209,43],[210,43],[212,43],[213,44],[215,44],[216,44],[217,45],[218,45]],90:[[210,43],[212,43],[213,44],[215,44],[216,44],[217,45],[219,45],[220,45],[221,45],[223,46],[224,46],[225,46]],95:[[217,45],[219,45],[220,45],[221,45],[223,46],[224,46],[225,46],[227,46],[228,47],[229,47],[230,47],[231,47]],100:[[224,46],[225,46],[226,46],[228,47],[229,47],[230,47],[231,47],[233,48],[234,48],[235,48],[236,48],[237,49]],105:[[230,47],[231,47],[233,48],[234,48],[235,48],[236,48],[237,49],[238,49],[240,49],[241,49],[242,50],[242,50]],110:[[236,48],[237,49],[238,49],[240,49],[241,49],[242,50],[243,50],[244,50],[245,50],[246,50],[247,51],[248,51]],115:[[242,50],[243,50],[244,50],[245,50],[246,50],[247,51],[248,51],[249,51],[250,51],[251,52],[253,52],[253,52]],120:[[247,51],[248,51],[249,51],[250,51],[251,52],[252,52],[253,52],[255,52],[256,52],[257,53],[257,53],[258,53]]};
+const BRAKE_WITHOUT_TR={0:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],5:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],10:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],15:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[2,0],[10,2],[18,3],[25,5],[32,6],[35,7]],20:[[0,0],[0,0],[8,2],[16,3],[23,5],[30,6],[37,7],[43,8],[49,10],[54,11],[60,12],[62,12]],25:[[28,6],[35,7],[41,8],[47,9],[53,10],[58,11],[64,13],[69,14],[73,14],[78,15],[83,16],[85,17]],30:[[57,11],[62,12],[67,13],[72,14],[77,15],[82,16],[86,17],[90,18],[94,19],[98,19],[102,20],[104,20]],35:[[80,16],[85,17],[89,18],[93,18],[97,19],[101,20],[105,21],[109,21],[112,22],[116,23],[119,23],[121,24]],40:[[100,20],[104,20],[108,21],[111,22],[115,23],[118,23],[121,24],[125,25],[128,25],[131,26],[134,26],[135,27]],45:[[117,23],[121,24],[124,24],[127,25],[130,26],[133,26],[136,27],[139,27],[142,28],[144,28],[147,29],[148,29]],50:[[132,26],[135,27],[138,27],[141,28],[144,28],[146,29],[149,29],[152,30],[154,30],[157,31],[159,31],[160,32]],55:[[146,29],[148,29],[151,30],[154,30],[156,31],[158,31],[161,32],[163,32],[166,33],[168,33],[170,33],[171,34]],60:[[158,31],[160,32],[163,32],[165,32],[167,33],[170,33],[172,34],[174,34],[176,35],[178,35],[180,35],[181,36]],65:[[169,33],[171,34],[173,34],[176,35],[178,35],[180,35],[182,36],[184,36],[186,37],[188,37],[190,37],[191,38]],70:[[179,35],[181,36],[183,36],[185,36],[187,37],[189,37],[191,38],[193,38],[195,38],[197,39],[198,39],[199,39]],75:[[189,37],[191,38],[192,38],[194,38],[196,39],[198,39],[200,39],[201,40],[203,40],[205,40],[206,41],[207,41]],80:[[197,39],[199,39],[201,40],[203,40],[204,40],[206,41],[208,41],[209,41],[211,42],[213,42],[214,42],[215,42]],85:[[206,40],[207,41],[209,41],[211,41],[212,42],[214,42],[215,42],[217,43],[218,43],[220,43],[221,44],[222,44]],90:[[213,42],[215,42],[217,43],[218,43],[220,43],[221,44],[223,44],[224,44],[225,44],[227,45],[228,45],[229,45]],95:[[221,43],[222,44],[224,44],[225,44],[226,45],[228,45],[229,45],[231,45],[232,46],[233,46],[235,46],[235,46]],100:[[228,45],[229,45],[230,45],[232,46],[233,46],[234,46],[236,46],[237,47],[238,47],[240,47],[241,47],[242,48]],105:[[234,46],[235,46],[237,47],[238,47],[239,47],[241,47],[242,48],[243,48],[244,48],[246,48],[247,49],[247,49]],110:[[240,47],[242,48],[243,48],[244,48],[245,48],[247,49],[248,49],[249,49],[250,49],[251,49],[252,50],[253,50]],115:[[246,48],[247,49],[249,49],[250,49],[251,49],[252,50],[253,50],[254,50],[256,50],[257,51],[258,51],[258,51]],120:[[252,50],[253,50],[254,50],[255,50],[256,50],[258,51],[259,51],[260,51],[261,51],[262,52],[263,52],[264,52]]};
+
+// ---------------- BRAKE COOLING (MEL 32-07-01-B) ----------------
+let brkTr = true; // Max reverser on all reversers
+
+function brkSetTr(v) {
+  brkTr = v;
+  $("brkTrYes").classList.toggle("active", v);
+  $("brkTrNo").classList.toggle("active", !v);
+  renderBrakeCool();
+}
+
+function renderBrakeCool() {
+  const e = parseFloat($("brkEnergy").value);
+  const oat = parseFloat($("brkOat").value);
+  const note = $("brkLookupNote");
+  if (isNaN(e) || isNaN(oat)) {
+    $("brkNoFan").textContent = "\u2014";
+    $("brkWithFan").textContent = "\u2014";
+    note.textContent = "";
+    return;
+  }
+  // MEL rule: if ENERGY/OAT not on the grid, use the next adjacent column/row (round UP).
+  const eGrid = BRAKE_ENERGY.find((x) => x >= e);
+  const oGrid = BRAKE_OAT.find((x) => x >= oat);
+  if (eGrid === undefined || oGrid === undefined) {
+    $("brkNoFan").textContent = "off scale";
+    $("brkWithFan").textContent = "off scale";
+    note.textContent = "Energy > 120 MJ or OAT > 55\u00b0C is beyond the MEL table \u2014 refer to the MEL directly.";
+    $("brkNoFan").className = "value warn";
+    $("brkWithFan").className = "value warn";
+    return;
+  }
+  const table = brkTr ? BRAKE_WITH_TR : BRAKE_WITHOUT_TR;
+  const oi = BRAKE_OAT.indexOf(oGrid);
+  const [noFan, withFan] = table[eGrid][oi];
+  $("brkNoFan").textContent = noFan + " min";
+  $("brkWithFan").textContent = withFan + " min";
+  $("brkNoFan").className = "value caution";
+  $("brkWithFan").className = "value ok";
+  const rounded = (eGrid !== e || oGrid !== oat);
+  note.textContent = rounded
+    ? `Table entry rounded up to ENERGY ${eGrid} MJ, OAT ${oGrid}\u00b0C (MEL adjacent-cell rule).`
+    : `Exact table entry: ENERGY ${eGrid} MJ, OAT ${oGrid}\u00b0C.`;
+}
+
+["brkEnergy", "brkOat"].forEach((id) => $(id).addEventListener("input", renderBrakeCool));
+renderBrakeCool();
 
 // set the footer for the default (Breaks) tab
 $("footerText").textContent = FOOTER_TEXT.brk;
