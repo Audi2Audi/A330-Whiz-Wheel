@@ -475,6 +475,38 @@
       </div>
       <div id="brkLookupNote" style="font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.5;"></div>
     </div>
+
+    <div class="card">
+      <h2>Brake Energy &mdash; Gross-Error Check</h2>
+      <div style="font-size:11.5px; color:var(--muted); margin-bottom:10px; line-height:1.5;">
+        A physical sanity band for the energy you read off the MEL graph &mdash; it catches misread axes
+        or wrong-curve errors. <b>Not a second calculation of the graph value.</b>
+      </div>
+      <div class="row">
+        <label for="brkWt">Weight</label>
+        <input type="number" id="brkWt" inputmode="decimal" placeholder="155" min="80" max="250">
+        <span class="unit">t</span>
+      </div>
+      <div class="row">
+        <label for="brkSpd">Speed (VTD / V1 / manual)</label>
+        <input type="number" id="brkSpd" inputmode="numeric" placeholder="130" min="60" max="200">
+        <span class="unit">kt</span>
+      </div>
+      <div class="result-line">
+        <span class="label">Total kinetic energy</span>
+        <span class="value" id="brkKE">&mdash;</span>
+      </div>
+      <div class="result-line">
+        <span class="label">Plausible graph-energy band</span>
+        <span class="value" id="brkBand">&mdash;</span>
+      </div>
+      <div id="brkSanity" style="margin-top:10px; padding:10px 12px; border-radius:8px; font-size:12.5px; font-weight:600; text-align:center; line-height:1.5;">&mdash;</div>
+      <div style="font-size:10px; color:var(--muted); margin-top:10px; line-height:1.5;">
+        Band = a broad fraction of &frac12;mV&sup2; (brakes absorb part of the energy; reversers, spoilers
+        &amp; drag take the rest). Wide by design &mdash; it flags order-of-magnitude misreads, not fine errors.
+        The MEL graph remains the authoritative source.
+      </div>
+    </div>
   </div>
 
   <!-- ================= TAB: RIC ================= -->
@@ -1349,6 +1381,53 @@ function renderBrakeCool() {
 
 ["brkEnergy", "brkOat"].forEach((id) => $(id).addEventListener("input", renderBrakeCool));
 renderBrakeCool();
+
+// Brake energy gross-error check: physical sanity band from kinetic energy.
+// Anchored to the MEL graph example (155t/130kt -> ~26 MJ/brake). Deliberately WIDE:
+// it flags order-of-magnitude misreads (wrong curve / wrong axis), not fine errors.
+function renderBrakeSanity() {
+  const wt = parseFloat($("brkWt").value);   // tonnes
+  const spd = parseFloat($("brkSpd").value); // kt IAS
+  const eIn = parseFloat($("brkEnergy").value); // MJ read off the graph (shared field above)
+  if (isNaN(wt) || isNaN(spd)) {
+    $("brkKE").textContent = "\u2014";
+    $("brkBand").textContent = "\u2014";
+    $("brkSanity").textContent = "Enter weight and speed to sanity-check the graph energy.";
+    $("brkSanity").style.background = "var(--panel2)";
+    $("brkSanity").style.color = "var(--muted)";
+    return;
+  }
+  const m = wt * 1000;                 // kg
+  const V = spd * 0.514444;            // m/s
+  const keTotal = 0.5 * m * V * V / 1e6; // MJ (total kinetic energy)
+  // Plausible per-brake graph energy as a broad fraction of total KE.
+  // MEL 155t/130kt example sits near 8%; widen to 3%-20% to avoid false alarms.
+  const lo = keTotal * 0.03;
+  const hi = keTotal * 0.20;
+  $("brkKE").textContent = keTotal.toFixed(0) + " MJ";
+  $("brkKE").className = "value";
+  $("brkBand").textContent = lo.toFixed(0) + "\u2013" + hi.toFixed(0) + " MJ";
+  $("brkBand").className = "value";
+
+  const box = $("brkSanity");
+  if (isNaN(eIn)) {
+    box.textContent = "Enter the graph energy (MJ) in the lookup above to compare.";
+    box.style.background = "var(--panel2)";
+    box.style.color = "var(--muted)";
+    return;
+  }
+  if (eIn >= lo && eIn <= hi) {
+    box.textContent = `Graph energy ${eIn} MJ is within the plausible band \u2014 no gross error detected.`;
+    box.style.background = "rgba(61,220,132,0.15)";
+    box.style.color = "var(--green)";
+  } else {
+    box.textContent = `\u26a0 Graph energy ${eIn} MJ is OUTSIDE the plausible ${lo.toFixed(0)}\u2013${hi.toFixed(0)} MJ band \u2014 re-check the graph read (axis / curve).`;
+    box.style.background = "rgba(255,90,90,0.15)";
+    box.style.color = "#ff6b6b";
+  }
+}
+["brkWt", "brkSpd", "brkEnergy"].forEach((id) => $(id).addEventListener("input", renderBrakeSanity));
+renderBrakeSanity();
 
 // set the footer for the default (Breaks) tab
 $("footerText").textContent = FOOTER_TEXT.brk;
