@@ -311,6 +311,15 @@
         <span class="unit">t/hr</span>
       </div>
       <div class="row">
+        <label for="isaDev">ISA Deviation</label>
+        <input type="number" id="isaDev" value="0" step="1" inputmode="numeric">
+        <span class="unit">&deg;C</span>
+      </div>
+      <div style="font-size:10px; color:var(--muted); margin:-4px 0 8px; line-height:1.5;">
+        Read ISA off the PROG page (or SAT vs. standard). Leave 0 for the plain 595 rule.
+        The rule assumes ~ISA and <b>over-predicts when warm</b> &mdash; a hot-day correction is applied below.
+      </div>
+      <div class="row">
         <label for="utc">Current Time</label>
         <input type="text" id="utc" inputmode="numeric" maxlength="4" placeholder="2000">
         <span class="unit">UTC</span>
@@ -663,11 +672,21 @@ function formatKg(v) {
   return Math.round(v).toLocaleString() + " kg";
 }
 
-function maxFL(weightT) {
-  return 595 - weightT;
+// ISA deviation correction: the 595 rule assumes ~ISA. Warm air is less dense,
+// degrading the buffet ceiling, so the rule OVER-predicts when hot. Apply ~1 FL
+// per 10 degC ABOVE ISA (order-of-magnitude, conservative). Cold days: no bonus
+// applied (stay conservative — the box is authoritative for extra capability).
+function isaPenaltyFL(isaDev) {
+  const d = parseFloat(isaDev);
+  if (isNaN(d) || d <= 0) return 0;      // only warm deviations reduce the ceiling
+  return d / 10;                          // ~1 flight level per 10 degC hot
 }
-function requiredWeightT(fl) {
-  return 595 - fl;
+function maxFL(weightT, isaDev) {
+  return 595 - weightT - isaPenaltyFL(isaDev);
+}
+function requiredWeightT(fl, isaDev) {
+  // weight needed so that (595 - wt - penalty) >= fl  =>  wt <= 595 - fl - penalty
+  return 595 - fl - isaPenaltyFL(isaDev);
 }
 function parseUTC(str) {
   str = (str || "").trim();
@@ -691,7 +710,7 @@ function formatUTCFromMinutes(totalMin) {
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}Z`;
 }
 
-function drawDial(weightT) {
+function drawDial(weightT, isaDev) {
   const svg = $("dial");
   svg.innerHTML = "";
   const cx = 140, cy = 140, r = 118;
@@ -726,7 +745,7 @@ function drawDial(weightT) {
     fill: "none", stroke: "#1c242b", "stroke-width": 14, "stroke-linecap": "round",
   }));
 
-  const curFL = maxFL(weightT);
+  const curFL = maxFL(weightT, isaDev);
   const clampedFL = Math.max(minFL, Math.min(maxFLv, curFL));
   const availAngle = angleForFL(clampedFL);
 
@@ -771,16 +790,20 @@ function render() {
   const gw = parseFloat($("gw").value) || 0;
   const burn = parseFloat($("burn").value) || 0.001;
   const target = parseFloat($("target").value) || 0;
+  const isaDev = parseFloat($("isaDev").value) || 0;
   let utcMin = parseUTC($("utc").value || "0000");
   if (isNaN(utcMin)) utcMin = 0;
 
-  const curMaxFL = Math.round(maxFL(gw) / 10) * 10;
+  // cap the rule at the FL410 certified ceiling
+  const rawMax = maxFL(gw, isaDev);
+  const curMaxFL = Math.min(410, Math.round(rawMax / 10) * 10);
   $("dialFL").textContent = "FL" + curMaxFL;
-  $("dialWt").textContent = gw.toFixed(1) + " t GW";
-  drawDial(gw);
+  $("dialWt").textContent = gw.toFixed(1) + " t GW"
+    + (isaDev > 0 ? "  \u00b7  ISA+" + isaDev : (isaDev < 0 ? "  \u00b7  ISA" + isaDev : ""));
+  drawDial(gw, isaDev);
 
   // target level calc
-  const reqWeight = requiredWeightT(target);
+  const reqWeight = requiredWeightT(target, isaDev);
   const weightToBurn = gw - reqWeight;
 
   if (weightToBurn <= 0) {
@@ -802,7 +825,7 @@ function render() {
   tbody.innerHTML = "";
   const levels = [290, 310, 330, 350, 370, 390, 400, 410];
   for (const fl of levels) {
-    const req = requiredWeightT(fl);
+    const req = requiredWeightT(fl, isaDev);
     const toBurn = gw - req;
     const tr = document.createElement("tr");
     let etaCell, statusClass;
@@ -821,7 +844,7 @@ function render() {
   }
 }
 
-["gw", "burn", "utc", "target"].forEach((id) => {
+["gw", "burn", "utc", "target", "isaDev"].forEach((id) => {
   $(id).addEventListener("input", render);
 });
 render();
