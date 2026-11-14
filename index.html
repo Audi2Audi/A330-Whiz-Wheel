@@ -224,7 +224,9 @@
     <button class="tabbtn" id="tabBtnWind" onclick="switchTab('wind')">Wind</button>
     <button class="tabbtn" id="tabBtnAppr" onclick="switchTab('appr')">Appr</button>
     <button class="tabbtn" id="tabBtnRic" onclick="switchTab('ric')">RIC</button>
-    <button class="tabbtn" id="tabBtnBrake" onclick="switchTab('brake')">Brk Cool</button>
+    <button class="tabbtn" id="tabBtnLatx" onclick="switchTab('latx')">Lat X</button>
+    <!-- Brk Cool shelved pending validation of the MEL brake-energy graph reads -->
+    <!-- <button class="tabbtn" id="tabBtnBrake" onclick="switchTab('brake')">Brk Cool</button> -->
   </div>
 
   <!-- ================= TAB: FUEL LEAK ================= -->
@@ -535,6 +537,35 @@
     </div>
   </div>
 
+  <!-- ================= TAB: LATITUDE CROSSING ================= -->
+  <div class="tabpanel" id="tabLatx">
+    <div class="card">
+      <h2>Latitude Crossing &mdash; Longitude &amp; ETA</h2>
+      <div class="data-freshness">
+        Longitude where your <b>great-circle track</b> crosses a parallel &mdash; to type into a
+        <b>FIX INFO</b> ref fix, then ABEAM (read-only: nothing is inserted into the active F-PLN).
+        Enter the two flight-plan waypoints that <b>bracket</b> the latitude (one below it, one above).
+      </div>
+      <div id="latxPoints"></div>
+      <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin:14px 0 6px;">TARGET LATITUDE(S)</div>
+      <div class="ric-coord-row">
+        <span class="unit" style="width:14px;">N</span>
+        <input type="number" id="latxStart" placeholder="60" inputmode="numeric" value="60">
+        <span class="unit" style="width:8px;">&deg;</span>
+        <span class="unit" style="width:40px;">count</span>
+        <input type="number" id="latxCount" placeholder="2" inputmode="numeric" value="2" min="1" max="12">
+        <span class="unit" style="width:36px;">incr</span>
+        <input type="number" id="latxIncr" placeholder="1" inputmode="numeric" value="1" min="1" max="10">
+        <span class="unit" style="width:8px;">&deg;</span>
+      </div>
+      <table class="ric-table" style="margin-top:14px;">
+        <thead><tr><th>Lat</th><th>FIX INFO</th><th>Lon (deg min)</th><th>ETA</th></tr></thead>
+        <tbody id="latxRows"></tbody>
+      </table>
+      <div id="latxNote" style="font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.5;"></div>
+    </div>
+  </div>
+
   <!-- ================= TAB: BREAK ================= -->
   <div class="tabpanel active" id="tabBrk">
     <div class="card">
@@ -628,6 +659,7 @@ const FOOTER_TEXT = {
   wind: "Limit values per FCOM Limitations / QRH — verify against current documents. Reported winds are magnetic from tower, true from ATIS/METAR.",
   appr: "Reference: QRH ABN-23.03F (Unreliable Speed Indication). Confirm against the current QRH before relying on these figures.",
   ric: "Verify FMS/FMGS tracks and distances against the OFP or Jeppesen Airway Manual General section tables per FOM 9.1.5. This tool supplements — not replaces — the published sources.",
+  latx: "Great-circle crossing longitude for a FIX INFO ref fix + ABEAM (read-only — nothing added to the active F-PLN). Verify the ABEAM time against the FMGS; confirm waypoints against the OFP.",
   brk: "Break times are simple even divisions of the entered rest window. Confirm controlled-rest and augmented-crew requirements per FOM and the Collective Agreement.",
   brake: "MEL 32-07-01-B table lookup only. Read brake energy from the MEL nomogram; confirm the full procedure and any dispatch conditions in the MEL itself.",
   duty: "CARs/FOM 6.5.6 limits only — Collective Agreement Tables A–D may be more restrictive and govern. Verify against A25 and confirm with Crew Scheduling or ALPA.",
@@ -639,6 +671,7 @@ function switchTab(name) {
   $("tabWind").classList.toggle("active", name === "wind");
   $("tabAppr").classList.toggle("active", name === "appr");
   $("tabRic").classList.toggle("active", name === "ric");
+  $("tabLatx").classList.toggle("active", name === "latx");
   $("tabBrake").classList.toggle("active", name === "brake");
   $("tabBrk").classList.toggle("active", name === "brk");
   $("tabDuty").classList.toggle("active", name === "duty");
@@ -647,7 +680,8 @@ function switchTab(name) {
   $("tabBtnWind").classList.toggle("active", name === "wind");
   $("tabBtnAppr").classList.toggle("active", name === "appr");
   $("tabBtnRic").classList.toggle("active", name === "ric");
-  $("tabBtnBrake").classList.toggle("active", name === "brake");
+  $("tabBtnLatx").classList.toggle("active", name === "latx");
+  $("tabBtnBrake")?.classList.toggle("active", name === "brake"); // button shelved; guard null
   $("tabBtnBrk").classList.toggle("active", name === "brk");
   $("tabBtnDuty").classList.toggle("active", name === "duty");
   $("footerText").textContent = FOOTER_TEXT[name] || FOOTER_TEXT.alt;
@@ -1195,6 +1229,159 @@ function ricComputeLegs() {
 ricAddPoint();
 ricAddPoint();
 
+
+// ---------------- LATITUDE CROSSING ----------------
+// Longitude where the great circle through A,B crosses a parallel (Ed Williams formulary).
+// East-positive degrees in/out (W = negative). Returns null if the GC never reaches lat3.
+function latxCrossLon(lat1, lon1, lat2, lon2, lat3) {
+  const r = d => d * Math.PI / 180, D = x => x * 180 / Math.PI;
+  const p1 = r(lat1), p2 = r(lat2), p3 = r(lat3), l1 = r(lon1), dl = r(lon1 - lon2);
+  const A = Math.sin(p1) * Math.cos(p2) * Math.cos(p3) * Math.sin(dl);
+  const B = Math.sin(p1) * Math.cos(p2) * Math.cos(p3) * Math.cos(dl) - Math.cos(p1) * Math.sin(p2) * Math.cos(p3);
+  const C = Math.cos(p1) * Math.cos(p2) * Math.sin(p3) * Math.sin(dl);
+  const R = Math.hypot(A, B);
+  if (Math.abs(C) > R) return null;                       // GC never reaches this latitude
+  const lon0 = Math.atan2(B, A), dlon = Math.acos(C / R);
+  const norm = x => ((x + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+  const cand = [D(norm(l1 + dlon + lon0)), D(norm(l1 - dlon + lon0))];
+  const lo = Math.min(lon1, lon2), hi = Math.max(lon1, lon2);
+  let pick = cand.find(x => x >= lo - 0.01 && x <= hi + 0.01);
+  if (pick === undefined) pick = cand.reduce((a, b) => Math.abs(a - lon1) < Math.abs(b - lon1) ? a : b);
+  return pick;
+}
+
+function latxHhmmToMin(s) {
+  s = (s || "").trim();
+  if (!/^\d{3,4}$/.test(s)) return null;
+  s = s.padStart(4, "0");
+  const h = +s.slice(0, 2), m = +s.slice(2);
+  return (h > 23 || m > 59) ? null : h * 60 + m;
+}
+function latxMinToHhmm(t) {
+  t = ((Math.round(t) % 1440) + 1440) % 1440;
+  return String(Math.floor(t / 60)).padStart(2, "0") + String(t % 60).padStart(2, "0");
+}
+function latxFixStr(lat3, lon) {
+  const latD = Math.round(lat3), ew = lon < 0 ? "W" : "E", aLon = Math.abs(lon);
+  let ld = Math.floor(aLon), lm = Math.round((aLon - ld) * 60);
+  if (lm === 60) { ld += 1; lm = 0; }
+  const short = "N" + String(latD).padStart(2, "0") + ew + String(Math.round(aLon)).padStart(3, "0");
+  const precise = "N" + latD + "° " + ew + String(ld).padStart(3, "0") + "°" + String(lm).padStart(2, "0") + "'";
+  return { short, precise };
+}
+
+const latxPts = [
+  { type: "wpt", name: "", latDeg: "", latMin: "0", lonDeg: "", eta: "" },
+  { type: "wpt", name: "", latDeg: "", latMin: "0", lonDeg: "", eta: "" },
+];
+
+function latxRenderPoints() {
+  const holder = $("latxPoints");
+  const wptOptions = Object.keys(RIC_WAYPOINTS).sort()
+    .map(n => '<option value="' + n + '">' + n + '</option>').join("");
+  holder.innerHTML = latxPts.map((p, i) => {
+    const typeButtons =
+      '<div class="ric-type-toggle">' +
+        '<button class="' + (p.type === "wpt" ? "active" : "") + '" onclick="latxSetType(' + i + ',\'wpt\')">Named WPT</button>' +
+        '<button class="' + (p.type === "ll" ? "active" : "") + '" onclick="latxSetType(' + i + ',\'ll\')">Lat/Long</button>' +
+      '</div>';
+    let inputRow;
+    if (p.type === "wpt") {
+      inputRow =
+        '<div class="ric-coord-row">' +
+          '<select onchange="latxPts[' + i + '].name = this.value; latxCompute();">' +
+            '<option value="">&mdash; select waypoint &mdash;</option>' + wptOptions +
+          '</select>' +
+        '</div>';
+    } else {
+      inputRow =
+        '<div class="ric-coord-row">' +
+          '<span class="unit" style="width:14px;">N</span>' +
+          '<input type="number" placeholder="59" value="' + p.latDeg + '" inputmode="numeric" ' +
+            'oninput="latxPts[' + i + '].latDeg = this.value; latxCompute();">' +
+          '<span class="unit" style="width:8px;">&deg;</span>' +
+          '<input type="number" placeholder="00" value="' + p.latMin + '" inputmode="numeric" min="0" max="59" ' +
+            'oninput="latxPts[' + i + '].latMin = this.value; latxCompute();">' +
+          '<span class="unit" style="width:10px;">\'</span>' +
+          '<span class="unit" style="width:16px;">W</span>' +
+          '<input type="number" placeholder="20" value="' + p.lonDeg + '" inputmode="numeric" ' +
+            'oninput="latxPts[' + i + '].lonDeg = this.value; latxCompute();">' +
+          '<span class="unit" style="width:8px;">&deg;</span>' +
+        '</div>';
+    }
+    const etaRow =
+      '<div class="ric-coord-row" style="margin-top:6px;">' +
+        '<span class="unit" style="width:30px;">ETA</span>' +
+        '<input type="text" inputmode="numeric" maxlength="4" placeholder="1210" value="' + p.eta + '" ' +
+          'oninput="latxPts[' + i + '].eta = this.value; latxCompute();">' +
+        '<span class="unit" style="width:28px;">UTC</span>' +
+      '</div>';
+    return '<div class="ric-point">' +
+        '<div class="ric-point-head">' +
+          '<span class="pt-label">POINT ' + (i === 0 ? "A" : "B") + '</span>' +
+        '</div>' + typeButtons + inputRow + etaRow + '</div>';
+  }).join("");
+  latxPts.forEach((p, i) => {
+    if (p.type === "wpt" && p.name) {
+      const sel = holder.children[i].querySelector("select");
+      if (sel) sel.value = p.name;
+    }
+  });
+  latxCompute();
+}
+
+function latxSetType(idx, type) { latxPts[idx].type = type; latxRenderPoints(); }
+
+function latxCompute() {
+  const tbody = $("latxRows"), note = $("latxNote");
+  tbody.innerHTML = "";
+  const A = ricPointCoords(latxPts[0]), B = ricPointCoords(latxPts[1]);
+  const start = parseFloat($("latxStart").value);
+  let count = parseInt($("latxCount").value, 10) || 1;
+  count = Math.max(1, Math.min(12, count));
+  const incr = parseFloat($("latxIncr").value) || 1;
+  if (!A || !B || isNaN(start)) {
+    note.textContent = "Enter both bracketing points and a target latitude.";
+    return;
+  }
+  const etaA = latxHhmmToMin(latxPts[0].eta), etaB = latxHhmmToMin(latxPts[1].eta);
+  const dAB = ricGreatCircle(A.lat, A.lon, B.lat, B.lon).dist;
+  const loLat = Math.min(A.lat, B.lat), hiLat = Math.max(A.lat, B.lat);
+  let warned = false;
+  for (let k = 0; k < count; k++) {
+    const L = start + k * incr;
+    const tr = document.createElement("tr");
+    if (L < loLat - 0.001 || L > hiLat + 0.001) {
+      tr.innerHTML = '<td>N' + L + '</td><td colspan="3" style="color:var(--muted)">not between the two points</td>';
+      tbody.appendChild(tr); warned = true; continue;
+    }
+    const lon = latxCrossLon(A.lat, A.lon, B.lat, B.lon, L);
+    if (lon === null) {
+      tr.innerHTML = '<td>N' + L + '</td><td colspan="3" style="color:var(--muted)">no crossing on this leg</td>';
+      tbody.appendChild(tr); continue;
+    }
+    const f = latxFixStr(L, lon);
+    let eta = "—";
+    if (etaA !== null && etaB !== null && dAB > 0) {
+      const dAx = ricGreatCircle(A.lat, A.lon, L, lon).dist;
+      let span = etaB - etaA; if (span < 0) span += 1440;
+      eta = latxMinToHhmm(etaA + (dAx / dAB) * span) + "z";
+    }
+    tr.innerHTML =
+      '<td>N' + L + '</td>' +
+      '<td style="font-family:var(--mono); color:var(--green); font-weight:700;">' + f.short + '</td>' +
+      '<td style="font-family:var(--mono);">' + f.precise + '</td>' +
+      '<td style="font-family:var(--mono);">' + eta + '</td>';
+    tbody.appendChild(tr);
+  }
+  note.innerHTML = (etaA === null || etaB === null)
+    ? "Type the FIX INFO column into the ref fix, select ABEAM, read the UTC — don't insert. Add both waypoint ETAs (UTC) for an interpolated cross-check time."
+    : "ETA interpolated by great-circle distance along the leg — cross-check against FIX INFO ABEAM on the active F-PLN.";
+  if (warned) note.innerHTML += " Grey rows: that latitude isn't between your two points.";
+}
+
+["latxStart", "latxCount", "latxIncr"].forEach(id => $(id).addEventListener("input", latxCompute));
+latxRenderPoints();
 
 // ---------------- CREW BREAK CALCULATOR ----------------
 let brkMode = 3;
