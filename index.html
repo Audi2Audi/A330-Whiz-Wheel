@@ -540,26 +540,39 @@
   <!-- ================= TAB: LATITUDE CROSSING ================= -->
   <div class="tabpanel" id="tabLatx">
     <div class="card">
-      <h2>Latitude Crossing &mdash; Longitude &amp; ETA</h2>
+      <h2>Lat / Long Crossing &mdash; Coordinate &amp; ETA</h2>
       <div class="data-freshness">
-        Longitude where your <b>great-circle track</b> crosses a parallel &mdash; to type into a
-        <b>FIX INFO</b> ref fix, then ABEAM (read-only: nothing is inserted into the active F-PLN).
-        Enter the two flight-plan waypoints that <b>bracket</b> the latitude (one below it, one above).
+        Where your <b>great-circle track</b> crosses a chosen parallel (latitude) or meridian (longitude) &mdash;
+        to type into a <b>FIX INFO</b> ref fix, then ABEAM (read-only: nothing is inserted into the active F-PLN).
+        Enter the two flight-plan waypoints that <b>bracket</b> the crossing (one each side of it).
       </div>
       <div id="latxPoints"></div>
-      <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin:14px 0 6px;">TARGET LATITUDE(S)</div>
+
+      <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin:14px 0 6px;">CROSSING TYPE</div>
+      <div class="ric-type-toggle">
+        <button id="latxModeLat" class="active" onclick="latxSetMode('lat')">Parallel<br>(cross a latitude)</button>
+        <button id="latxModeLon" onclick="latxSetMode('lon')">Meridian<br>(cross a longitude)</button>
+      </div>
+
+      <div style="font-size:11px; color:var(--amber); letter-spacing:0.1em; margin:14px 0 6px;" id="latxTargetLbl">TARGET LATITUDE(S)</div>
       <div class="ric-coord-row">
-        <span class="unit" style="width:14px;">N</span>
+        <span class="unit" style="width:16px;" id="latxHemi">N</span>
         <input type="number" id="latxStart" placeholder="60" inputmode="numeric" value="60">
         <span class="unit" style="width:8px;">&deg;</span>
         <span class="unit" style="width:40px;">count</span>
-        <input type="number" id="latxCount" placeholder="2" inputmode="numeric" value="2" min="1" max="12">
+        <input type="number" id="latxCount" placeholder="1" inputmode="numeric" value="1" min="1" max="12">
         <span class="unit" style="width:36px;">incr</span>
         <input type="number" id="latxIncr" placeholder="1" inputmode="numeric" value="1" min="1" max="10">
         <span class="unit" style="width:8px;">&deg;</span>
       </div>
+      <div style="font-size:10.5px; color:var(--muted); margin-top:8px; line-height:1.5;">
+        <b>count</b> = how many crossings to list; <b>incr</b> = degrees between them. Leave count at
+        <b>1</b> for a single crossing. Example: start N60, count 2, incr 1 &rarr; gives N60 <i>and</i> N61 in
+        one go (saves re-entering). Mirrors the FMS XING / INCR / NO field &mdash; which inserts waypoints
+        into the plan; this does not.
+      </div>
       <table class="ric-table" style="margin-top:14px;">
-        <thead><tr><th>Lat</th><th>FIX INFO</th><th>Lon (deg min)</th><th>ETA</th></tr></thead>
+        <thead><tr><th id="latxH0">Lat</th><th>FIX INFO</th><th id="latxH2">Lon (deg min)</th><th>ETA</th></tr></thead>
         <tbody id="latxRows"></tbody>
       </table>
       <div id="latxNote" style="font-size:10.5px; color:var(--muted); margin-top:10px; line-height:1.5;"></div>
@@ -1261,18 +1274,41 @@ function latxMinToHhmm(t) {
   t = ((Math.round(t) % 1440) + 1440) % 1440;
   return String(Math.floor(t / 60)).padStart(2, "0") + String(t % 60).padStart(2, "0");
 }
-function latxFixStr(lat3, lon) {
-  const latD = Math.round(lat3), ew = lon < 0 ? "W" : "E", aLon = Math.abs(lon);
-  let ld = Math.floor(aLon), lm = Math.round((aLon - ld) * 60);
-  if (lm === 60) { ld += 1; lm = 0; }
-  const short = "N" + String(latD).padStart(2, "0") + ew + String(Math.round(aLon)).padStart(3, "0");
-  const precise = "N" + latD + "° " + ew + String(ld).padStart(3, "0") + "°" + String(lm).padStart(2, "0") + "'";
-  return { short, precise };
+// Latitude where the great circle through A,B crosses a given meridian lon3 (Ed Williams).
+// Single-valued; returns null for a ~north-south leg (meridian undefined / no unique crossing).
+function latxCrossLat(lat1, lon1, lat2, lon2, lon3) {
+  const r = d => d * Math.PI / 180, D = x => x * 180 / Math.PI;
+  const p1 = r(lat1), p2 = r(lat2), l1 = r(lon1), l2 = r(lon2), l3 = r(lon3);
+  const denom = Math.cos(p1) * Math.cos(p2) * Math.sin(l1 - l2);
+  if (Math.abs(denom) < 1e-12) return null;
+  const lat = Math.atan((Math.sin(p1) * Math.cos(p2) * Math.sin(l3 - l2)
+    - Math.sin(p2) * Math.cos(p1) * Math.sin(l3 - l1)) / denom);
+  return D(lat);
 }
 
+function latxFmt(val, isLat) {
+  const hemi = isLat ? (val < 0 ? "S" : "N") : (val < 0 ? "W" : "E");
+  const a = Math.abs(val), pad = isLat ? 2 : 3;
+  let d = Math.floor(a), m = Math.round((a - d) * 60);
+  if (m === 60) { d += 1; m = 0; }
+  return {
+    short: hemi + String(Math.round(a)).padStart(pad, "0"),
+    precise: hemi + String(d).padStart(pad, "0") + "°" + String(m).padStart(2, "0") + "'",
+  };
+}
+// Build the FIX INFO ref-fix string + a precise read for the computed coordinate.
+function latxFix(lat, lon) {
+  return {
+    short: latxFmt(lat, true).short + latxFmt(lon, false).short,  // e.g. N60W024
+    preciseLat: latxFmt(lat, true).precise,
+    preciseLon: latxFmt(lon, false).precise,
+  };
+}
+
+let latxMode = "lat";   // "lat" = cross a parallel, "lon" = cross a meridian
 const latxPts = [
-  { type: "wpt", name: "", latDeg: "", latMin: "0", lonDeg: "", eta: "" },
-  { type: "wpt", name: "", latDeg: "", latMin: "0", lonDeg: "", eta: "" },
+  { type: "ll", name: "", latDeg: "", latMin: "0", lonDeg: "", eta: "" },
+  { type: "ll", name: "", latDeg: "", latMin: "0", lonDeg: "", eta: "" },
 ];
 
 function latxRenderPoints() {
@@ -1332,6 +1368,19 @@ function latxRenderPoints() {
 
 function latxSetType(idx, type) { latxPts[idx].type = type; latxRenderPoints(); }
 
+function latxSetMode(m) {
+  latxMode = m;
+  $("latxModeLat").classList.toggle("active", m === "lat");
+  $("latxModeLon").classList.toggle("active", m === "lon");
+  const isLat = m === "lat";
+  $("latxTargetLbl").textContent = isLat ? "TARGET LATITUDE(S)" : "TARGET LONGITUDE(S)";
+  $("latxHemi").textContent = isLat ? "N" : "W";
+  $("latxStart").placeholder = isLat ? "60" : "030";
+  $("latxH0").textContent = isLat ? "Lat" : "Lon";
+  $("latxH2").textContent = isLat ? "Lon (deg min)" : "Lat (deg min)";
+  latxCompute();
+}
+
 function latxCompute() {
   const tbody = $("latxRows"), note = $("latxNote");
   tbody.innerHTML = "";
@@ -1340,44 +1389,58 @@ function latxCompute() {
   let count = parseInt($("latxCount").value, 10) || 1;
   count = Math.max(1, Math.min(12, count));
   const incr = parseFloat($("latxIncr").value) || 1;
+  const isLat = latxMode === "lat";
   if (!A || !B || isNaN(start)) {
-    note.textContent = "Enter both bracketing points and a target latitude.";
+    note.textContent = "Enter both bracketing points and a target " + (isLat ? "latitude." : "longitude.");
     return;
   }
   const etaA = latxHhmmToMin(latxPts[0].eta), etaB = latxHhmmToMin(latxPts[1].eta);
   const dAB = ricGreatCircle(A.lat, A.lon, B.lat, B.lon).dist;
-  const loLat = Math.min(A.lat, B.lat), hiLat = Math.max(A.lat, B.lat);
+  // bracket range: latitudes for parallel mode, longitudes for meridian mode
+  const lo = isLat ? Math.min(A.lat, B.lat) : Math.min(A.lon, B.lon);
+  const hi = isLat ? Math.max(A.lat, B.lat) : Math.max(A.lon, B.lon);
   let warned = false;
   for (let k = 0; k < count; k++) {
-    const L = start + k * incr;
+    const T = start + k * incr;                 // target value (lat N+, or lon W as +, converted below)
+    const targetSigned = isLat ? T : -T;        // UI longitudes are West → negative east-positive
+    const targetLabel = (isLat ? "N" : "W") + T;
     const tr = document.createElement("tr");
-    if (L < loLat - 0.001 || L > hiLat + 0.001) {
-      tr.innerHTML = '<td>N' + L + '</td><td colspan="3" style="color:var(--muted)">not between the two points</td>';
+    if (targetSigned < lo - 0.001 || targetSigned > hi + 0.001) {
+      tr.innerHTML = '<td>' + targetLabel + '</td><td colspan="3" style="color:var(--muted)">not between the two points</td>';
       tbody.appendChild(tr); warned = true; continue;
     }
-    const lon = latxCrossLon(A.lat, A.lon, B.lat, B.lon, L);
-    if (lon === null) {
-      tr.innerHTML = '<td>N' + L + '</td><td colspan="3" style="color:var(--muted)">no crossing on this leg</td>';
+    let cLat, cLon;
+    if (isLat) {
+      cLat = T;
+      cLon = latxCrossLon(A.lat, A.lon, B.lat, B.lon, T);
+    } else {
+      cLon = targetSigned;
+      cLat = latxCrossLat(A.lat, A.lon, B.lat, B.lon, targetSigned);
+    }
+    if (cLon === null || cLat === null) {
+      tr.innerHTML = '<td>' + targetLabel + '</td><td colspan="3" style="color:var(--muted)">no crossing on this leg</td>';
       tbody.appendChild(tr); continue;
     }
-    const f = latxFixStr(L, lon);
+    const f = latxFix(cLat, cLon);
+    const other = isLat ? f.preciseLon : f.preciseLat;
     let eta = "—";
     if (etaA !== null && etaB !== null && dAB > 0) {
-      const dAx = ricGreatCircle(A.lat, A.lon, L, lon).dist;
+      const dAx = ricGreatCircle(A.lat, A.lon, cLat, cLon).dist;
       let span = etaB - etaA; if (span < 0) span += 1440;
       eta = latxMinToHhmm(etaA + (dAx / dAB) * span) + "z";
     }
     tr.innerHTML =
-      '<td>N' + L + '</td>' +
+      '<td>' + targetLabel + '</td>' +
       '<td style="font-family:var(--mono); color:var(--green); font-weight:700;">' + f.short + '</td>' +
-      '<td style="font-family:var(--mono);">' + f.precise + '</td>' +
+      '<td style="font-family:var(--mono);">' + other + '</td>' +
       '<td style="font-family:var(--mono);">' + eta + '</td>';
     tbody.appendChild(tr);
   }
-  note.innerHTML = (etaA === null || etaB === null)
+  const fmtNote = " FIX INFO is the whole-degree <b>AxxByyy</b> form (per FCOM); the deg-min column is the exact crossing &mdash; ABEAM snaps to your track, so the whole-degree ref fix still reads the right point.";
+  note.innerHTML = ((etaA === null || etaB === null)
     ? "Type the FIX INFO column into the ref fix, select ABEAM, read the UTC — don't insert. Add both waypoint ETAs (UTC) for an interpolated cross-check time."
-    : "ETA interpolated by great-circle distance along the leg — cross-check against FIX INFO ABEAM on the active F-PLN.";
-  if (warned) note.innerHTML += " Grey rows: that latitude isn't between your two points.";
+    : "ETA interpolated by great-circle distance along the leg — cross-check against FIX INFO ABEAM on the active F-PLN.") + fmtNote;
+  if (warned) note.innerHTML += " Grey rows: that " + (isLat ? "latitude" : "longitude") + " isn't between your two points.";
 }
 
 ["latxStart", "latxCount", "latxIncr"].forEach(id => $(id).addEventListener("input", latxCompute));
