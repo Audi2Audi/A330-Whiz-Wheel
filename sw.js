@@ -3,7 +3,7 @@
 // launch NEVER waits on the network — critical on restricted/captive
 // in-flight Wi-Fi where fetches hang rather than fail. Updates are
 // fetched in the background and apply on the next launch.
-const CACHE = "whizwheel-v2";
+const CACHE = "whizwheel-v3";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
